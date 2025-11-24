@@ -24,14 +24,16 @@ export default function Home() {
             <Link
               href="/login"
               className="bg-primary-600 text-white px-8 py-3 rounded-lg font-semibold hover:bg-primary-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
-              aria-label="Перейти на страницу входа в систему">
+              aria-label="Перейти на страницу входа в систему"
+            >
               Войти в систему
             </Link>
 
             <Link
               href="/auth/register"
               className="border border-primary-600 text-primary-600 px-8 py-3 rounded-lg font-semibold hover:bg-primary-600 hover:text-white transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
-              aria-label="Перейти на страницу регистрации">
+              aria-label="Перейти на страницу регистрации"
+            >
               Зарегистрироваться
             </Link>
           </div>

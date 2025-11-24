@@ -185,7 +185,7 @@ export class UserService {
         role: user.role,
         projects: data.projectIds,
         groups: data.groupIds,
-      },
+      }
     );
     return user;
   }
@@ -264,7 +264,7 @@ export class UserService {
         isActive: oldUser.isActive,
         projects: oldUser.userProjects.map((up) => up.projectId),
         groups: oldUser.userGroups.map((ug) => ug.groupId),
-      },
+      }
     );
 
     return user;
@@ -274,7 +274,7 @@ export class UserService {
     id: number,
     deactivatedById: number,
     reason?: string,
-    request?: NextRequest,
+    request?: NextRequest
   ) {
     const user = await prisma.user.update({
       where: { id },
@@ -293,7 +293,7 @@ export class UserService {
       },
       {
         isActive: true,
-      },
+      }
     );
 
     return user;
@@ -312,7 +312,7 @@ export class UserService {
       user.id,
       request,
       { isActive: true },
-      { isActive: false },
+      { isActive: false }
     );
 
     return user;

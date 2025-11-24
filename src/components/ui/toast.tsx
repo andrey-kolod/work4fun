@@ -33,27 +33,29 @@ export function useToast() {
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
-
-  const addToast = useCallback((toast: Omit<Toast, 'id'>) => {
-    const id = Math.random().toString(36).substring(2, 9);
-    const newToast: Toast = {
-      id,
-      duration: 5000,
-      ...toast,
-    };
-
-    setToasts((prev) => [...prev, newToast]);
-
-    if (newToast.duration !== 0) {
-      setTimeout(() => {
-        removeToast(id);
-      }, newToast.duration);
-    }
-  }, []);
-
   const removeToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((toast) => toast.id !== id));
   }, []);
+
+  const addToast = useCallback(
+    (toast: Omit<Toast, 'id'>) => {
+      const id = Math.random().toString(36).substring(2, 9);
+      const newToast: Toast = {
+        id,
+        duration: 5000,
+        ...toast,
+      };
+
+      setToasts((prev) => [...prev, newToast]);
+
+      if (newToast.duration !== 0) {
+        setTimeout(() => {
+          removeToast(id);
+        }, newToast.duration);
+      }
+    },
+    [removeToast]
+  );
 
   const clearToasts = useCallback(() => {
     setToasts([]);
@@ -127,7 +129,8 @@ function ToastItem({ toast, onClose }: { toast: Toast; onClose: () => void }) {
         </div>
         <button
           onClick={onClose}
-          className="flex-shrink-0 ml-4 text-gray-400 hover:text-gray-600 transition-colors text-lg font-bold">
+          className="flex-shrink-0 ml-4 text-gray-400 hover:text-gray-600 transition-colors text-lg font-bold"
+        >
           ×
         </button>
       </div>

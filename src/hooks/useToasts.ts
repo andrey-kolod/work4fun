@@ -14,7 +14,7 @@ export function useToasts() {
         duration: 4000,
       });
     },
-    [addToast],
+    [addToast]
   );
 
   const toastError = useCallback(
@@ -26,7 +26,7 @@ export function useToasts() {
         duration: 6000,
       });
     },
-    [addToast],
+    [addToast]
   );
 
   const toastWarning = useCallback(
@@ -38,7 +38,7 @@ export function useToasts() {
         duration: 5000,
       });
     },
-    [addToast],
+    [addToast]
   );
 
   const toastInfo = useCallback(
@@ -50,7 +50,7 @@ export function useToasts() {
         duration: 4000,
       });
     },
-    [addToast],
+    [addToast]
   );
 
   return {

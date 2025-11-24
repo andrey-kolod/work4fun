@@ -21,7 +21,7 @@ export default async function DashboardPage(props: {
   const dashboardService = new DashboardService();
   const userProjects = await dashboardService.getUserProjects(
     parseInt(session.user.id),
-    session.user.role,
+    session.user.role
   );
 
   if (userProjects.length === 0) {
@@ -34,7 +34,7 @@ export default async function DashboardPage(props: {
   const dashboardData = await dashboardService.getDashboardData(
     selectedProjectId,
     parseInt(session.user.id),
-    session.user.role,
+    session.user.role
   );
 
   // 🔧 Приводим типы к нужному формату
@@ -61,7 +61,7 @@ export default async function DashboardPage(props: {
 function getSelectedProjectId(
   userProjects: any[],
   urlProjectId: string | undefined,
-  cookies: any,
+  cookies: any
 ): number {
   console.log('🔍 Поиск проекта:', {
     urlProjectId,

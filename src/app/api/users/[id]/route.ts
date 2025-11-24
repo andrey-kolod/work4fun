@@ -52,7 +52,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       parseInt(params.id),
       body,
       parseInt(session.user.id),
-      request,
+      request
     );
 
     return NextResponse.json(user);

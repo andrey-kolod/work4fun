@@ -17,7 +17,7 @@ export class DashboardService {
   async getDashboardData(
     projectId: number,
     userId: number,
-    userRole: string,
+    userRole: string
   ): Promise<DashboardStats> {
     const hasAccess = await this.checkProjectAccess(projectId, userId, userRole);
 
@@ -128,7 +128,7 @@ export class DashboardService {
   private async checkProjectAccess(
     projectId: number,
     userId: number,
-    userRole: string,
+    userRole: string
   ): Promise<boolean> {
     if (userRole === 'SUPER_ADMIN') {
       return true;

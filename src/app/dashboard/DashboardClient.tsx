@@ -194,7 +194,7 @@ export function DashboardClient({
         setIsLoading(false);
       }
     },
-    [activeProjectId, currentProjectId, userProjects, addToast],
+    [activeProjectId, currentProjectId, userProjects, addToast]
   );
 
   // 🔧 Функция предзагрузки соседних проектов
@@ -226,7 +226,7 @@ export function DashboardClient({
         }
       }
     },
-    [userProjects],
+    [userProjects]
   );
 
   // 🔧 Вспомогательная функция для отображения имени пользователя
@@ -272,7 +272,8 @@ export function DashboardClient({
                           : 'border-gray-300 hover:border-primary focus:border-primary focus:ring-2 focus:ring-primary/20 cursor-pointer'
                       }
                       ${error ? 'border-red-300 ring-2 ring-red-100' : ''}
-                    `}>
+                    `}
+                  >
                     {userProjects.map((project: Project) => (
                       <option key={project.id} value={project.id}>
                         {project.name}
@@ -323,12 +324,14 @@ export function DashboardClient({
                     <div className="flex items-center gap-2">
                       <button
                         onClick={handleRetry}
-                        className="px-3 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors text-sm">
+                        className="px-3 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors text-sm"
+                      >
                         Повторить
                       </button>
                       <button
                         onClick={() => setError(null)}
-                        className="text-red-500 hover:text-red-700 text-lg font-bold">
+                        className="text-red-500 hover:text-red-700 text-lg font-bold"
+                      >
                         ×
                       </button>
                     </div>
@@ -342,7 +345,8 @@ export function DashboardClient({
               <button
                 onClick={clearCache}
                 className="px-3 py-2 text-sm bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors flex items-center gap-2"
-                title="Очистить кэш данных">
+                title="Очистить кэш данных"
+              >
                 🧹
                 <span className="hidden sm:inline">Очистить кэш</span>
               </button>
@@ -363,7 +367,8 @@ export function DashboardClient({
                     description: 'Операция выполнена успешно',
                   })
                 }
-                className="px-3 py-1 bg-green-500 text-white rounded text-sm hover:bg-green-600">
+                className="px-3 py-1 bg-green-500 text-white rounded text-sm hover:bg-green-600"
+              >
                 ✅ Успех
               </button>
               <button
@@ -374,7 +379,8 @@ export function DashboardClient({
                     description: 'Что-то пошло не так',
                   })
                 }
-                className="px-3 py-1 bg-red-500 text-white rounded text-sm hover:bg-red-600">
+                className="px-3 py-1 bg-red-500 text-white rounded text-sm hover:bg-red-600"
+              >
                 ❌ Ошибка
               </button>
               <button
@@ -385,7 +391,8 @@ export function DashboardClient({
                     description: 'Будьте внимательны',
                   })
                 }
-                className="px-3 py-1 bg-yellow-500 text-white rounded text-sm hover:bg-yellow-600">
+                className="px-3 py-1 bg-yellow-500 text-white rounded text-sm hover:bg-yellow-600"
+              >
                 ⚠️ Предупреждение
               </button>
               <button
@@ -396,7 +403,8 @@ export function DashboardClient({
                     description: 'Это информационное сообщение',
                   })
                 }
-                className="px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600">
+                className="px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
+              >
                 ℹ️ Информация
               </button>
             </div>
@@ -408,7 +416,8 @@ export function DashboardClient({
           className={`
           transition-all duration-300 ease-in-out
           ${isLoading ? 'opacity-60 pointer-events-none' : 'opacity-100'}
-        `}>
+        `}
+        >
           {/* Карточки статистики */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
@@ -419,7 +428,7 @@ export function DashboardClient({
               <p className="text-3xl font-bold text-primary">
                 {dashboardDataState.taskStats.reduce(
                   (total: number, stat: TaskStat) => total + stat.count,
-                  0,
+                  0
                 )}
               </p>
               <p className="text-sm text-text-secondary mt-1">в проекте</p>
@@ -464,7 +473,7 @@ export function DashboardClient({
                 {dashboardDataState.recentTasks.length} из{' '}
                 {dashboardDataState.taskStats.reduce(
                   (total: number, stat: TaskStat) => total + stat.count,
-                  0,
+                  0
                 )}
               </span>
             </div>
@@ -472,7 +481,8 @@ export function DashboardClient({
               {dashboardDataState.recentTasks.map((task: Task) => (
                 <div
                   key={task.id}
-                  className="flex items-center justify-between p-4 border border-gray-100 rounded-lg hover:border-primary/30 hover:shadow-sm transition-all duration-200">
+                  className="flex items-center justify-between p-4 border border-gray-100 rounded-lg hover:border-primary/30 hover:shadow-sm transition-all duration-200"
+                >
                   <div className="flex-1 min-w-0">
                     <h4 className="font-medium text-text-primary truncate">{task.title}</h4>
                     <div className="flex items-center gap-2 mt-1">
@@ -493,7 +503,8 @@ export function DashboardClient({
                     ${task.status === 'DONE' ? 'bg-green-100 text-green-800' : ''}
                     ${task.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-800' : ''}
                     ${task.status === 'TODO' ? 'bg-gray-100 text-gray-800' : ''}
-                  `}>
+                  `}
+                  >
                     {task.status === 'DONE' && '✅ '}
                     {task.status === 'IN_PROGRESS' && '🔄 '}
                     {task.status === 'TODO' && '📝 '}

@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
 
     const users = await userService.getAllUsers(
       projectId ? parseInt(projectId) : undefined,
-      session.user.role,
+      session.user.role
     );
     return NextResponse.json(users);
   } catch (error) {

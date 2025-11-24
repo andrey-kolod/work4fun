@@ -10,7 +10,7 @@ export class ActivityLogService {
     entityId: number,
     request?: NextRequest,
     newValues?: any,
-    oldValues?: any,
+    oldValues?: any
   ) {
     let ipAddress = 'unknown';
     let userAgent = 'unknown';

@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     const dashboardData = await dashboardService.getDashboardData(
       parseInt(projectId),
       parseInt(session.user.id),
-      session.user.role,
+      session.user.role
     );
 
     return NextResponse.json(dashboardData);
