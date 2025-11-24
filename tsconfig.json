@@ -31,7 +31,8 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts",
     "tailwind.config.js",
-    "middleware.js"
+    "middleware.js",
+    "src/middleware.ts.old"
   ],
   "exclude": ["node_modules"]
 }
