@@ -1,60 +1,7 @@
-// Импортируем функцию create из Zustand
+// /src/store/useAppStore.ts
+
 import { create } from 'zustand';
-
-// === ВРЕМЕННЫЕ ИНТЕРФЕЙСЫ (потом заменим на настоящие из Prisma) ===
-
-// Временный интерфейс пользователя
-interface User {
-  id: number;
-  name: string;
-  email: string;
-  role: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-// Временный интерфейс проекта
-interface Project {
-  id: number;
-  name: string;
-  description: string;
-  status: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-// Временный интерфейс задачи
-interface Task {
-  id: number;
-  title: string;
-  description: string;
-  status: string;
-  priority: string;
-  dueDate: Date;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-// Временный интерфейс группы
-interface Group {
-  id: number;
-  name: string;
-  description: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-// Временный интерфейс уведомления
-interface Notification {
-  id: number;
-  title: string;
-  message: string;
-  type: string;
-  read: boolean;
-  createdAt: Date;
-}
-
-// === ИНТЕРФЕЙС СОСТОЯНИЯ (STATE) ===
+import { User, Project, Task, Group, Notification } from '@/types/user';
 
 interface AppState {
   currentUser: User | null;
@@ -73,8 +20,6 @@ interface AppState {
   };
 }
 
-// === ИНТЕРФЕЙС ДЕЙСТВИЙ (ACTIONS) ===
-
 interface AppActions {
   setCurrentUser: (user: User | null) => void;
   logout: () => void;
@@ -88,100 +33,74 @@ interface AppActions {
   deleteUser: (id: number) => void;
 }
 
-// === СОЗДАЕМ STORE ===
+export const useAppStore = create<AppState & AppActions>((set, get) => ({
+  currentUser: null,
+  isAuthenticated: false,
+  users: [],
+  projects: [],
+  groups: [],
+  tasks: [],
+  notifications: [],
+  sidebarOpen: false,
+  currentView: 'dashboard',
+  loading: {
+    users: false,
+    projects: false,
+    tasks: false,
+  },
 
-// Типизируем set и get функции
-export const useAppStore = create<AppState & AppActions>(
-  (
-    set: (partial: Partial<AppState> | ((state: AppState) => Partial<AppState>)) => void,
-    get: () => AppState & AppActions
-  ) => ({
-    // ======================
-    // НАЧАЛЬНОЕ СОСТОЯНИЕ
-    // ======================
+  setCurrentUser: (user: User | null) => {
+    set({
+      currentUser: user,
+      isAuthenticated: !!user,
+    });
+  },
 
-    currentUser: null,
-    isAuthenticated: false,
-    users: [],
-    projects: [],
-    groups: [],
-    tasks: [],
-    notifications: [],
-    sidebarOpen: false,
-    currentView: 'dashboard',
-    loading: {
-      users: false,
-      projects: false,
-      tasks: false,
-    },
+  logout: () => {
+    set({
+      currentUser: null,
+      isAuthenticated: false,
+      users: [],
+      projects: [],
+      tasks: [],
+    });
+  },
 
-    // ======================
-    // ДЕЙСТВИЯ (ACTIONS)
-    // ======================
+  setUsers: (users: User[]) => {
+    set({ users });
+  },
 
-    // setCurrentUser - устанавливает текущего пользователя
-    setCurrentUser: (user: User | null): void => {
-      set({
-        currentUser: user,
-        isAuthenticated: !!user,
-      });
-    },
+  setProjects: (projects: Project[]) => {
+    set({ projects });
+  },
 
-    // logout - выход пользователя
-    logout: (): void => {
-      set({
-        currentUser: null,
-        isAuthenticated: false,
-        users: [],
-        projects: [],
-        tasks: [],
-      });
-    },
+  setTasks: (tasks: Task[]) => {
+    set({ tasks });
+  },
 
-    // setUsers - заменяет весь массив пользователей
-    setUsers: (users: User[]): void => {
-      set({ users });
-    },
+  setSidebarOpen: (open: boolean) => {
+    set({ sidebarOpen: open });
+  },
 
-    // setProjects - заменяет весь массив проектов
-    setProjects: (projects: Project[]): void => {
-      set({ projects });
-    },
+  setCurrentView: (view: AppState['currentView']) => {
+    set({ currentView: view });
+  },
 
-    // setTasks - заменяет весь массив задач
-    setTasks: (tasks: Task[]): void => {
-      set({ tasks });
-    },
+  addUser: (user: User) => {
+    set((state) => ({
+      users: [...state.users, user],
+    }));
+  },
 
-    // setSidebarOpen - управление боковой панелью
-    setSidebarOpen: (open: boolean): void => {
-      set({ sidebarOpen: open });
-    },
+  updateUser: (id: number, userData: Partial<User>) => {
+    set((state) => ({
+      users: state.users.map((user) => (user.id === id ? { ...user, ...userData } : user)),
+    }));
+  },
 
-    // setCurrentView - смена активной страницы
-    setCurrentView: (view: AppState['currentView']): void => {
-      set({ currentView: view });
-    },
-
-    // addUser - добавление нового пользователя
-    addUser: (user: User): void => {
-      set((state: AppState) => ({
-        users: [...state.users, user],
-      }));
-    },
-
-    // updateUser - обновление пользователя
-    updateUser: (id: number, userData: Partial<User>): void => {
-      set((state: AppState) => ({
-        users: state.users.map((user: User) => (user.id === id ? { ...user, ...userData } : user)),
-      }));
-    },
-
-    // deleteUser - удаление пользователя
-    deleteUser: (id: number): void => {
-      set((state: AppState) => ({
-        users: state.users.filter((user: User) => user.id !== id),
-      }));
-    },
-  })
-);
+  deleteUser: (id: number) => {
+    set((state) => ({
+      users: state.users.filter((user) => user.id !== id),
+    }));
+  },
+}));
