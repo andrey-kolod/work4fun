@@ -1,161 +1,398 @@
+// src/components/TestStore.tsx
 'use client';
 
-// Импортируем наш store
+import React from 'react';
 import { useAppStore } from '@/store/useAppStore';
 
-// Компонент для тестирования Zustand store
-export function TestStore() {
-  // Достаем данные и функции из store
-  // useAppStore - это хук, который дает доступ к состоянию и действиям
+// Создаем интерфейсы которые точно соответствуют типам из store
+interface TestUser {
+  id: number;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: 'SUPER_ADMIN' | 'ADMIN' | 'USER';
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface TestProject {
+  id: number;
+  name: string;
+  description: string;
+  status: 'ACTIVE' | 'COMPLETED' | 'ARCHIVED';
+  ownerId: number;
+  startDate: Date | null;
+  endDate: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt: Date | null;
+}
+
+interface TestTask {
+  id: number;
+  title: string;
+  description: string;
+  status: 'TODO' | 'IN_PROGRESS' | 'REVIEW' | 'DONE';
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+  dueDate: Date;
+  projectId: number;
+  assignedTo: number;
+  createdBy: number;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt: Date | null;
+}
+
+// Выносим вычисление дат в константы ВНЕ компонента
+const THIRTY_DAYS_FROM_NOW = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+const SEVEN_DAYS_FROM_NOW = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+const NOW = new Date();
+
+const TestStore: React.FC = () => {
   const {
     currentUser,
     isAuthenticated,
-    sidebarOpen,
     users,
-    setSidebarOpen,
+    projects,
+    tasks,
+    sidebarOpen,
+    currentView,
     setCurrentUser,
+    setUsers,
+    setProjects,
+    setTasks,
+    setSidebarOpen,
+    setCurrentView,
     addUser,
-    logout,
+    updateUser,
+    deleteUser,
   } = useAppStore();
 
-  // Функция для тестирования входа пользователя
-  const testLogin = (): void => {
-    // Создаем тестового пользователя
-    const testUser: any = {
+  // Тестовые данные
+  const testUser: TestUser = {
+    id: 1,
+    email: 'test@example.com',
+    firstName: 'Тестовый',
+    lastName: 'Пользователь',
+    role: 'USER',
+    createdAt: NOW,
+    updatedAt: NOW,
+  };
+
+  const testUsers: TestUser[] = [
+    testUser,
+    {
+      id: 2,
+      email: 'admin@example.com',
+      firstName: 'Администратор',
+      lastName: 'Системы',
+      role: 'ADMIN',
+      createdAt: NOW,
+      updatedAt: NOW,
+    },
+  ];
+
+  const testProjects: TestProject[] = [
+    {
       id: 1,
-      name: 'Тестовый пользователь',
-      email: 'test@example.com',
-      role: 'user',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+      name: 'Тестовый проект',
+      description: 'Описание тестового проекта',
+      status: 'ACTIVE',
+      ownerId: 1,
+      startDate: NOW,
+      endDate: THIRTY_DAYS_FROM_NOW,
+      createdAt: NOW,
+      updatedAt: NOW,
+      deletedAt: null,
+    },
+  ];
 
-    // Вызываем действие из store для установки пользователя
-    setCurrentUser(testUser);
-  };
-
-  // Функция для тестирования добавления пользователя
-  const testAddUser = (): void => {
-    // Создаем нового пользователя
-    const newUser: any = {
-      id: Date.now(), // используем timestamp как временный ID
-      name: `Новый пользователь ${users.length + 1}`,
-      email: `user${users.length + 1}@example.com`,
-      role: 'user',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    // Вызываем действие из store для добавления пользователя
-    addUser(newUser);
-  };
-
-  // Функция для выхода
-  const handleLogout = (): void => {
-    logout();
-  };
+  const testTasks: TestTask[] = [
+    {
+      id: 1,
+      title: 'Тестовая задача',
+      description: 'Описание тестовой задачи',
+      status: 'TODO',
+      priority: 'MEDIUM',
+      dueDate: SEVEN_DAYS_FROM_NOW,
+      projectId: 1,
+      assignedTo: 1,
+      createdBy: 1,
+      createdAt: NOW,
+      updatedAt: NOW,
+      deletedAt: null,
+    },
+  ];
 
   return (
-    <div
-      style={{
-        padding: '20px',
-        border: '2px solid #4CAF50',
-        margin: '10px',
-        borderRadius: '8px',
-        backgroundColor: '#f9f9f9',
-      }}
-    >
-      <h3 style={{ color: '#4CAF50', marginBottom: '15px' }}>🧪 Тест Zustand Store</h3>
+    <div style={{ padding: '20px', border: '1px solid #ccc', margin: '10px', borderRadius: '5px' }}>
+      <h2>🧪 Тест Store (Zustand)</h2>
 
       {/* Информация о текущем состоянии */}
       <div style={{ marginBottom: '10px' }}>
-        <strong>Текущий пользователь:</strong> {currentUser?.name || 'Не авторизован'}
+        <strong>Текущий пользователь:</strong>{' '}
+        {currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : 'Не авторизован'}
       </div>
 
       <div style={{ marginBottom: '10px' }}>
-        <strong>Авторизован:</strong> {isAuthenticated ? '✅ Да' : '❌ Нет'}
+        <strong>Аутентифицирован:</strong> {isAuthenticated ? 'Да' : 'Нет'}
       </div>
 
       <div style={{ marginBottom: '10px' }}>
-        <strong>Сайдбар открыт:</strong> {sidebarOpen ? '✅ Да' : '❌ Нет'}
+        <strong>Пользователей в store:</strong> {users.length}
       </div>
 
       <div style={{ marginBottom: '10px' }}>
-        <strong>Количество пользователей:</strong> {users.length}
+        <strong>Проектов в store:</strong> {projects.length}
       </div>
 
-      {/* Кнопки для тестирования */}
-      <div style={{ marginTop: '15px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+      <div style={{ marginBottom: '10px' }}>
+        <strong>Задач в store:</strong> {tasks.length}
+      </div>
+
+      <div style={{ marginBottom: '10px' }}>
+        <strong>Боковая панель:</strong> {sidebarOpen ? 'Открыта' : 'Закрыта'}
+      </div>
+
+      <div style={{ marginBottom: '20px' }}>
+        <strong>Текущий вид:</strong> {currentView}
+      </div>
+
+      {/* Кнопки действий */}
+      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '20px' }}>
         <button
-          onClick={testLogin}
+          onClick={() => setCurrentUser(testUser)}
           style={{
-            padding: '8px 16px',
-            backgroundColor: '#4CAF50',
+            padding: '8px 12px',
+            backgroundColor: '#007acc',
             color: 'white',
             border: 'none',
             borderRadius: '4px',
-            cursor: 'pointer',
           }}
         >
-          🔐 Тестовый вход
+          Установить пользователя
+        </button>
+
+        <button
+          onClick={() => setCurrentUser(null)}
+          style={{
+            padding: '8px 12px',
+            backgroundColor: '#ff4444',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+          }}
+        >
+          Сбросить пользователя
+        </button>
+
+        <button
+          onClick={() => setUsers(testUsers)}
+          style={{
+            padding: '8px 12px',
+            backgroundColor: '#00c851',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+          }}
+        >
+          Загрузить пользователей
+        </button>
+
+        <button
+          onClick={() => setProjects(testProjects)}
+          style={{
+            padding: '8px 12px',
+            backgroundColor: '#ffbb33',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+          }}
+        >
+          Загрузить проекты
+        </button>
+
+        <button
+          onClick={() => setTasks(testTasks)}
+          style={{
+            padding: '8px 12px',
+            backgroundColor: '#aa66cc',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+          }}
+        >
+          Загрузить задачи
         </button>
 
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
           style={{
-            padding: '8px 16px',
-            backgroundColor: '#2196F3',
+            padding: '8px 12px',
+            backgroundColor: '#33b5e5',
             color: 'white',
             border: 'none',
             borderRadius: '4px',
-            cursor: 'pointer',
           }}
         >
-          {sidebarOpen ? '📕 Закрыть' : '📖 Открыть'} сайдбар
+          Переключить панель
         </button>
 
         <button
-          onClick={testAddUser}
+          onClick={() => setCurrentView('dashboard')}
           style={{
-            padding: '8px 16px',
-            backgroundColor: '#FF9800',
+            padding: '8px 12px',
+            backgroundColor: '#2BBBAD',
             color: 'white',
             border: 'none',
             borderRadius: '4px',
-            cursor: 'pointer',
           }}
         >
-          👤 Добавить пользователя
+          Вид: Дашборд
         </button>
 
         <button
-          onClick={handleLogout}
+          onClick={() => setCurrentView('projects')}
           style={{
-            padding: '8px 16px',
-            backgroundColor: '#f44336',
+            padding: '8px 12px',
+            backgroundColor: '#4285F4',
             color: 'white',
             border: 'none',
             borderRadius: '4px',
-            cursor: 'pointer',
           }}
         >
-          🚪 Выйти
+          Вид: Проекты
+        </button>
+
+        <button
+          onClick={() => setCurrentView('users')}
+          style={{
+            padding: '8px 12px',
+            backgroundColor: '#FF8800',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+          }}
+        >
+          Вид: Пользователи
+        </button>
+
+        <button
+          onClick={() =>
+            addUser({
+              id: Date.now(),
+              email: `newuser${Date.now()}@example.com`,
+              firstName: 'Новый',
+              lastName: 'Пользователь',
+              role: 'USER',
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            })
+          }
+          style={{
+            padding: '8px 12px',
+            backgroundColor: '#CC0000',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+          }}
+        >
+          Добавить пользователя
+        </button>
+
+        <button
+          onClick={() => {
+            if (users.length > 0) {
+              updateUser(users[0].id, { firstName: 'Обновленное Имя' });
+            }
+          }}
+          style={{
+            padding: '8px 12px',
+            backgroundColor: '#9933CC',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+          }}
+        >
+          Обновить первого пользователя
+        </button>
+
+        <button
+          onClick={() => {
+            if (users.length > 0) {
+              deleteUser(users[0].id);
+            }
+          }}
+          style={{
+            padding: '8px 12px',
+            backgroundColor: '#FF4444',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+          }}
+        >
+          Удалить первого пользователя
         </button>
       </div>
 
-      {/* Показываем список пользователей если они есть */}
+      {/* Детальная информация */}
+      {currentUser && (
+        <div
+          style={{
+            marginBottom: '20px',
+            padding: '10px',
+            backgroundColor: '#f8f9fa',
+            borderRadius: '4px',
+          }}
+        >
+          <h3>Детали текущего пользователя:</h3>
+          <pre>{JSON.stringify(currentUser, null, 2)}</pre>
+        </div>
+      )}
+
       {users.length > 0 && (
-        <div style={{ marginTop: '15px' }}>
-          <h4>📋 Список пользователей:</h4>
-          <ul style={{ paddingLeft: '20px' }}>
-            {users.map((user: any) => (
-              <li key={user.id}>
-                {user.name} ({user.email})
-              </li>
-            ))}
-          </ul>
+        <div
+          style={{
+            marginBottom: '20px',
+            padding: '10px',
+            backgroundColor: '#e8f5e8',
+            borderRadius: '4px',
+          }}
+        >
+          <h3>Пользователи ({users.length}):</h3>
+          <pre>{JSON.stringify(users, null, 2)}</pre>
+        </div>
+      )}
+
+      {projects.length > 0 && (
+        <div
+          style={{
+            marginBottom: '20px',
+            padding: '10px',
+            backgroundColor: '#fff3cd',
+            borderRadius: '4px',
+          }}
+        >
+          <h3>Проекты ({projects.length}):</h3>
+          <pre>{JSON.stringify(projects, null, 2)}</pre>
+        </div>
+      )}
+
+      {tasks.length > 0 && (
+        <div
+          style={{
+            marginBottom: '20px',
+            padding: '10px',
+            backgroundColor: '#f8d7da',
+            borderRadius: '4px',
+          }}
+        >
+          <h3>Задачи ({tasks.length}):</h3>
+          <pre>{JSON.stringify(tasks, null, 2)}</pre>
         </div>
       )}
     </div>
   );
-}
+};
+
+export default TestStore;

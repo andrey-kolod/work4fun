@@ -25,12 +25,9 @@ function getClientIP(request: Request): string {
 }
 
 // POST /api/groups/[id]/users - Добавить пользователя в группу
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> } // ИСПРАВЛЕНО: добавляем Promise
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { id } = await params; // ИСПРАВЛЕНО: используем await
+    const { id } = await params;
     const session = await getServerSession(authOptions);
     if (!session) {
       return NextResponse.json({ error: 'Не авторизован' }, { status: 401 });
@@ -40,7 +37,7 @@ export async function POST(
     const { userId } = body;
 
     const group = await prisma.group.findUnique({
-      where: { id: parseInt(id) }, // ИСПРАВЛЕНО: используем id из params
+      where: { id: parseInt(id) },
       include: {
         project: true,
       },
@@ -78,7 +75,7 @@ export async function POST(
     const userGroup = await prisma.userGroup.create({
       data: {
         userId: parseInt(userId),
-        groupId: parseInt(id), // ИСПРАВЛЕНО: используем id из params
+        groupId: parseInt(id),
       },
       include: {
         user: {
@@ -92,7 +89,7 @@ export async function POST(
       },
     });
 
-    // Логируем действие с правильным типом userId
+    // Логируем действие
     await audit.create(
       parseInt(session.user.id),
       'Group',
@@ -102,8 +99,7 @@ export async function POST(
         userName: `${user.firstName} ${user.lastName}`,
         action: 'USER_ADDED_TO_GROUP',
       },
-      request,
-      request.headers.get('user-agent') || 'unknown'
+      request
     );
 
     return NextResponse.json({ userGroup }, { status: 201 });
@@ -116,58 +112,38 @@ export async function POST(
   }
 }
 
-// DELETE /api/groups/[id]/users/[userId] - Удалить пользователя из группы
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string; userId: string }> } // ИСПРАВЛЕНО: добавляем Promise
-) {
+// GET /api/groups/[id]/users - Получить пользователей группы
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { id, userId } = await params; // ИСПРАВЛЕНО: используем await
+    const { id } = await params;
     const session = await getServerSession(authOptions);
     if (!session) {
       return NextResponse.json({ error: 'Не авторизован' }, { status: 401 });
     }
 
-    const userGroup = await prisma.userGroup.findFirst({
+    const users = await prisma.userGroup.findMany({
       where: {
-        groupId: parseInt(id), // ИСПРАВЛЕНО: используем id из params
-        userId: parseInt(userId), // ИСПРАВЛЕНО: используем userId из params
+        groupId: parseInt(id),
       },
       include: {
-        user: true,
-        group: true,
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            role: true,
+            isActive: true,
+          },
+        },
       },
     });
 
-    if (!userGroup) {
-      return NextResponse.json({ error: 'Пользователь не найден в группе' }, { status: 404 });
-    }
-
-    await prisma.userGroup.delete({
-      where: {
-        id: userGroup.id,
-      },
-    });
-
-    // Логируем действие с правильным типом userId
-    await audit.delete(
-      parseInt(session.user.id),
-      'Group',
-      userGroup.groupId,
-      {
-        userId: userGroup.user.id,
-        userName: `${userGroup.user.firstName} ${userGroup.user.lastName}`,
-        action: 'USER_REMOVED_FROM_GROUP',
-      },
-      request,
-      request.headers.get('user-agent') || 'unknown'
-    );
-
-    return NextResponse.json({ message: 'Пользователь удален из группы' });
+    return NextResponse.json({ users });
   } catch (error) {
-    console.error('Error removing user from group:', error);
+    console.error('Error fetching group users:', error);
     return NextResponse.json(
-      { error: 'Ошибка при удалении пользователя из группы' },
+      { error: 'Ошибка при получении пользователей группы' },
       { status: 500 }
     );
   }

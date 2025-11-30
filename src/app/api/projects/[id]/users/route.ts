@@ -1,5 +1,4 @@
 // src/app/api/projects/[id]/users/route.ts
-
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
@@ -9,27 +8,21 @@ import { audit } from '@/lib/audit';
 // POST /api/projects/[id]/users - Добавить пользователя в проект
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
     const session = await getServerSession(authOptions);
     if (!session) {
       return NextResponse.json({ error: 'Не авторизован' }, { status: 401 });
     }
 
-    const { id } = await params;
-    const projectId = parseInt(id);
     const body = await request.json();
     const { userId } = body;
 
     const project = await prisma.project.findUnique({
-      where: { id: projectId },
+      where: { id: parseInt(id) },
     });
 
     if (!project) {
       return NextResponse.json({ error: 'Проект не найден' }, { status: 404 });
-    }
-
-    // Проверяем права - только владелец, админы или супер-админы
-    if (session.user.role === 'USER' && project.ownerId !== parseInt(session.user.id)) {
-      return NextResponse.json({ error: 'Доступ запрещен' }, { status: 403 });
     }
 
     // Проверяем, что пользователь существует
@@ -41,23 +34,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Пользователь не найден' }, { status: 404 });
     }
 
-    // Проверяем, что пользователь еще не в проекте
-    const existingUserProject = await prisma.userProject.findFirst({
-      where: {
-        userId: parseInt(userId),
-        projectId,
-      },
-    });
-
-    if (existingUserProject) {
-      return NextResponse.json({ error: 'Пользователь уже в проекте' }, { status: 400 });
-    }
-
     // Добавляем пользователя в проект
     const userProject = await prisma.userProject.create({
       data: {
         userId: parseInt(userId),
-        projectId,
+        projectId: parseInt(id),
       },
       include: {
         user: {
@@ -74,15 +55,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // Логируем действие
     await audit.create(
       parseInt(session.user.id),
-      'ProjectUser',
-      userProject.id,
+      'Project',
+      project.id,
       {
-        projectId,
         userId: user.id,
         userName: `${user.firstName} ${user.lastName}`,
+        action: 'USER_ADDED_TO_PROJECT',
       },
-      request,
-      request.headers.get('user-agent') || 'unknown'
+      request
     );
 
     return NextResponse.json({ userProject }, { status: 201 });
@@ -95,78 +75,38 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 }
 
-// DELETE /api/projects/[id]/users/[userId] - Удалить пользователя из проекта
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string; userId: string }> }
-) {
+// GET /api/projects/[id]/users - Получить пользователей проекта
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
     const session = await getServerSession(authOptions);
     if (!session) {
       return NextResponse.json({ error: 'Не авторизован' }, { status: 401 });
     }
 
-    const { id, userId } = await params;
-    const projectId = parseInt(id);
-    const targetUserId = parseInt(userId);
-
-    const project = await prisma.project.findUnique({
-      where: { id: projectId },
-    });
-
-    if (!project) {
-      return NextResponse.json({ error: 'Проект не найден' }, { status: 404 });
-    }
-
-    // Проверяем права - только владелец, админы или супер-админы
-    if (session.user.role === 'USER' && project.ownerId !== parseInt(session.user.id)) {
-      return NextResponse.json({ error: 'Доступ запрещен' }, { status: 403 });
-    }
-
-    // Нельзя удалить владельца проекта
-    if (targetUserId === project.ownerId) {
-      return NextResponse.json({ error: 'Нельзя удалить владельца проекта' }, { status: 400 });
-    }
-
-    const userProject = await prisma.userProject.findFirst({
+    const users = await prisma.userProject.findMany({
       where: {
-        projectId,
-        userId: targetUserId,
+        projectId: parseInt(id),
       },
       include: {
-        user: true,
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            role: true,
+            isActive: true,
+          },
+        },
       },
     });
 
-    if (!userProject) {
-      return NextResponse.json({ error: 'Пользователь не найден в проекте' }, { status: 404 });
-    }
-
-    await prisma.userProject.delete({
-      where: {
-        id: userProject.id,
-      },
-    });
-
-    // Логируем действие
-    await audit.delete(
-      parseInt(session.user.id),
-      'ProjectUser',
-      userProject.id,
-      {
-        projectId,
-        userId: userProject.user.id,
-        userName: `${userProject.user.firstName} ${userProject.user.lastName}`,
-      },
-      request,
-      request.headers.get('user-agent') || 'unknown'
-    );
-
-    return NextResponse.json({ message: 'Пользователь удален из проекта' });
+    return NextResponse.json({ users });
   } catch (error) {
-    console.error('Error removing user from project:', error);
+    console.error('Error fetching project users:', error);
     return NextResponse.json(
-      { error: 'Ошибка при удалении пользователя из проекта' },
+      { error: 'Ошибка при получении пользователей проекта' },
       { status: 500 }
     );
   }
