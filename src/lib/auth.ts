@@ -1,36 +1,22 @@
 // src/lib/auth.ts
+
 import { NextAuthOptions, User } from 'next-auth';
 import { PrismaAdapter } from '@auth/prisma-adapter';
 import CredentialsProvider from 'next-auth/providers/credentials';
-import { prisma } from './db';
+import { prisma } from './prisma';
 import bcrypt from 'bcryptjs';
 
-// declare module 'next-auth' {
-//   interface User {
-//     role?: string;
-//   }
-//   interface Session {
-//     user: {
-//       id: string;
-//       email?: string | null;
-//       name?: string | null;
-//       role?: string;
-//     };
-//   }
-// }
-
-// declare module 'next-auth/jwt' {
-//   interface JWT {
-//     role?: string;
-//     id?: string;
-//   }
-// }
-
+/**
+ * Конфигурация аутентификации NextAuth.js
+ * Этот файл определяет как пользователи входят в систему
+ */
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma) as any,
+
   session: {
     strategy: 'jwt',
   },
+
   providers: [
     CredentialsProvider({
       name: 'credentials',
@@ -42,15 +28,18 @@ export const authOptions: NextAuthOptions = {
         if (!credentials?.email || !credentials?.password) {
           return null;
         }
+
         const user = await prisma.user.findUnique({
           where: { email: credentials.email },
         });
+
         if (!user || !user.isActive) {
           return null;
         }
 
         try {
           const isPasswordValid = await bcrypt.compare(credentials.password, user.password);
+
           if (!isPasswordValid) {
             return null;
           }
@@ -67,6 +56,7 @@ export const authOptions: NextAuthOptions = {
       },
     }),
   ],
+
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
@@ -75,14 +65,16 @@ export const authOptions: NextAuthOptions = {
       }
       return token;
     },
+
     async session({ session, token }) {
       if (token && token.id && token.role) {
         session.user.id = token.id.toString();
-        session.user.role = token.role;
+        session.user.role = token.role as string;
       }
       return session;
     },
   },
+
   pages: {
     signIn: '/auth/login',
   },
