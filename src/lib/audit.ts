@@ -63,7 +63,7 @@ export async function logActivity(activity: ActivityLogData) {
 //  * Предоставляет готовые методы для common действий
 export const audit = {
   //  * Логирование создания сущности
-  create: (
+  create: async (
     userId: number,
     entityType: string,
     entityId: number,
@@ -71,18 +71,18 @@ export const audit = {
     request?: Request,
     userAgent?: string
   ) =>
-    logActivity({
+    await logActivity({
       userId,
       actionType: `${entityType.toUpperCase()}_CREATED`,
       entityType,
       entityId,
       newValues,
       ipAddress: request ? getClientIP(request) : 'unknown',
-      userAgent: userAgent || 'unknown',
+      userAgent: userAgent || request?.headers?.get('user-agent') || 'unknown',
     }),
 
   //  * Логирование обновления сущности
-  update: (
+  update: async (
     userId: number,
     entityType: string,
     entityId: number,
@@ -91,7 +91,7 @@ export const audit = {
     request?: Request,
     userAgent?: string
   ) =>
-    logActivity({
+    await logActivity({
       userId,
       actionType: `${entityType.toUpperCase()}_UPDATED`,
       entityType,
@@ -99,11 +99,11 @@ export const audit = {
       oldValues,
       newValues,
       ipAddress: request ? getClientIP(request) : 'unknown',
-      userAgent: userAgent || 'unknown',
+      userAgent: userAgent || request?.headers?.get('user-agent') || 'unknown',
     }),
 
   //  * Логирование удаления сущности
-  delete: (
+  delete: async (
     userId: number,
     entityType: string,
     entityId: number,
@@ -111,49 +111,49 @@ export const audit = {
     request?: Request,
     userAgent?: string
   ) =>
-    logActivity({
+    await logActivity({
       userId,
       actionType: `${entityType.toUpperCase()}_DELETED`,
       entityType,
       entityId,
       oldValues,
       ipAddress: request ? getClientIP(request) : 'unknown',
-      userAgent: userAgent || 'unknown',
+      userAgent: userAgent || request?.headers?.get('user-agent') || 'unknown',
     }),
 
   //  * Логирование активации пользователя
-  activateUser: (
+  activateUser: async (
     userId: number,
     targetUserId: number,
     reason?: string,
     request?: Request,
     userAgent?: string
   ) =>
-    logActivity({
+    await logActivity({
       userId,
       actionType: 'USER_ACTIVATED',
       entityType: 'User',
       entityId: targetUserId,
       newValues: { isActive: true, reason },
       ipAddress: request ? getClientIP(request) : 'unknown',
-      userAgent: userAgent || 'unknown',
+      userAgent: userAgent || request?.headers?.get('user-agent') || 'unknown',
     }),
 
   //  * Логирование деактивации пользователя
-  deactivateUser: (
+  deactivateUser: async (
     userId: number,
     targetUserId: number,
     reason?: string,
     request?: Request,
     userAgent?: string
   ) =>
-    logActivity({
+    await logActivity({
       userId,
       actionType: 'USER_DEACTIVATED',
       entityType: 'User',
       entityId: targetUserId,
       newValues: { isActive: false, reason },
       ipAddress: request ? getClientIP(request) : 'unknown',
-      userAgent: userAgent || 'unknown',
+      userAgent: userAgent || request?.headers?.get('user-agent') || 'unknown',
     }),
 };

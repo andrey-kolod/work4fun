@@ -151,14 +151,13 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Логируем действие с правильным получением IP
+    // Логируем действие
     await audit.create(
       parseInt(session.user.id),
       'User',
       user.id,
       { email, firstName, lastName, role },
-      request,
-      request.headers.get('user-agent') || 'unknown'
+      request
     );
 
     // Возвращаем пользователя без пароля
