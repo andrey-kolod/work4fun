@@ -1,7 +1,5 @@
 // src/lib/api/projects.ts
 
-import { Project, User } from '@prisma/client';
-
 export interface ProjectFilters {
   search?: string;
   status?: string;
@@ -12,17 +10,12 @@ export interface ProjectFilters {
 export interface ProjectCreateData {
   name: string;
   description: string;
-  startDate?: string;
-  endDate?: string;
 }
 
 export interface ProjectUpdateData {
   name: string;
   description: string;
   status: 'ACTIVE' | 'COMPLETED' | 'ARCHIVED';
-  startDate?: string;
-  endDate?: string;
-  ownerId?: number;
 }
 
 export interface ProjectWithDetails {
@@ -30,12 +23,15 @@ export interface ProjectWithDetails {
   name: string;
   description: string;
   status: 'ACTIVE' | 'COMPLETED' | 'ARCHIVED';
-  owner: User;
-  startDate: Date | null;
-  endDate: Date | null;
+  owner: {
+    id: number;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
   progress: number;
   groups: any[];
-  users: User[];
+  users: any[];
   stats: {
     totalTasks: number;
     totalUsers: number;
@@ -86,7 +82,7 @@ class ProjectsAPI {
     return response.json();
   }
 
-  async createProject(projectData: ProjectCreateData): Promise<{ project: Project }> {
+  async createProject(projectData: ProjectCreateData): Promise<{ project: any }> {
     const response = await fetch(this.baseURL, {
       method: 'POST',
       headers: {
@@ -103,7 +99,7 @@ class ProjectsAPI {
     return response.json();
   }
 
-  async updateProject(id: number, projectData: ProjectUpdateData): Promise<{ project: Project }> {
+  async updateProject(id: number, projectData: ProjectUpdateData): Promise<{ project: any }> {
     const response = await fetch(`${this.baseURL}/${id}`, {
       method: 'PUT',
       headers: {

@@ -110,8 +110,6 @@ export async function GET(request: NextRequest) {
         description: project.description,
         status: project.status,
         owner: project.owner,
-        startDate: project.startDate,
-        endDate: project.endDate,
         progress,
         groups: project.groups.map((group) => ({
           id: group.id,
@@ -159,7 +157,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, description, startDate, endDate } = body;
+    const { name, description } = body;
 
     if (!name) {
       return NextResponse.json({ error: 'Название проекта обязательно' }, { status: 400 });
@@ -171,8 +169,6 @@ export async function POST(request: NextRequest) {
         description: description || '',
         ownerId: parseInt(session.user.id),
         status: 'ACTIVE',
-        startDate: startDate ? new Date(startDate) : new Date(),
-        endDate: endDate ? new Date(endDate) : null,
       },
       include: {
         owner: {

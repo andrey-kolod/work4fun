@@ -17,6 +17,7 @@ export interface UserFilters {
   search?: string;
   role?: string;
   status?: string;
+  group?: string;
   page?: number;
   pageSize?: number;
 }
@@ -66,6 +67,7 @@ class UsersAPI {
     if (filters.search) params.append('search', filters.search);
     if (filters.role) params.append('role', filters.role);
     if (filters.status) params.append('status', filters.status);
+    if (filters.group) params.append('group', filters.group);
     if (filters.page) params.append('page', filters.page.toString());
     if (filters.pageSize) params.append('pageSize', filters.pageSize.toString());
 

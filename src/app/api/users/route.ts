@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search') || '';
     const role = searchParams.get('role') || '';
     const status = searchParams.get('status') || '';
+    const group = searchParams.get('group') || '';
     const page = parseInt(searchParams.get('page') || '1');
     const pageSize = parseInt(searchParams.get('pageSize') || '10');
 
@@ -46,6 +47,10 @@ export async function GET(request: NextRequest) {
       where.isActive = true;
     } else if (status === 'inactive') {
       where.isActive = false;
+    }
+
+    if (group) {
+      where.groupId = parseInt(group);
     }
 
     // Получаем пользователей с пагинацией

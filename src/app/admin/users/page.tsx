@@ -13,18 +13,55 @@ interface User {
   role: 'SUPER_ADMIN' | 'ADMIN' | 'USER';
   isActive: boolean;
   createdAt: string;
+  userGroups: {
+    group: {
+      id: number;
+      name: string;
+    };
+  }[];
+}
+
+interface Group {
+  id: number;
+  name: string;
 }
 
 export default function UsersPage() {
   const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
+  const [allGroups, setAllGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
+  const [groupsLoading, setGroupsLoading] = useState(true);
+
+  // Фильтры
+  const [filters, setFilters] = useState({
+    search: '',
+    role: '',
+    status: '',
+    group: '',
+  });
+
+  // Пагинация
+  const [pagination, setPagination] = useState({
+    page: 1,
+    pageSize: 10,
+    total: 0,
+  });
 
   // Функция для получения списка пользователей
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/users');
+
+      const params = new URLSearchParams();
+      if (filters.search) params.append('search', filters.search);
+      if (filters.role) params.append('role', filters.role);
+      if (filters.status) params.append('status', filters.status);
+      if (filters.group) params.append('group', filters.group);
+      params.append('page', pagination.page.toString());
+      params.append('pageSize', pagination.pageSize.toString());
+
+      const response = await fetch(`/api/users?${params.toString()}`);
 
       if (!response.ok) {
         throw new Error('Ошибка при получении пользователей');
@@ -32,6 +69,7 @@ export default function UsersPage() {
 
       const data = await response.json();
       setUsers(data.users || []);
+      setPagination((prev) => ({ ...prev, total: data.pagination.total }));
     } catch (error) {
       console.error('Error fetching users:', error);
       alert('Ошибка при загрузке пользователей');
@@ -40,10 +78,65 @@ export default function UsersPage() {
     }
   };
 
-  // Загружаем пользователей при монтировании компонента
+  // Функция для получения списка групп
+  const fetchGroups = async () => {
+    try {
+      setGroupsLoading(true);
+      const response = await fetch('/api/groups?page=1&pageSize=100');
+
+      if (!response.ok) {
+        throw new Error('Ошибка при получении групп');
+      }
+
+      const data = await response.json();
+      setAllGroups(data.groups || []);
+    } catch (error) {
+      console.error('Error fetching groups:', error);
+    } finally {
+      setGroupsLoading(false);
+    }
+  };
+
+  // Загружаем пользователей и группы при монтировании компонента
   useEffect(() => {
     fetchUsers();
-  }, []);
+    fetchGroups();
+  }, [filters, pagination.page]);
+
+  // Обработчики фильтров
+  const handleSearch = (search: string) => {
+    setFilters((prev) => ({ ...prev, search }));
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  };
+
+  const handleRoleFilter = (role: string) => {
+    setFilters((prev) => ({ ...prev, role }));
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  };
+
+  const handleStatusFilter = (status: string) => {
+    setFilters((prev) => ({ ...prev, status }));
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  };
+
+  const handleGroupFilter = (group: string) => {
+    setFilters((prev) => ({ ...prev, group }));
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  };
+
+  // Сброс фильтров
+  const resetFilters = () => {
+    setFilters({
+      search: '',
+      role: '',
+      status: '',
+      group: '',
+    });
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  };
+
+  // Проверка активных фильтров
+  const hasActiveFilters = filters.search || filters.role || filters.status || filters.group;
 
   // Функция для форматирования даты
   const formatDate = (dateString: string) => {
@@ -79,6 +172,11 @@ export default function UsersPage() {
     }
   };
 
+  // Получение групп пользователя
+  const getUserGroups = (user: User) => {
+    return user.userGroups.map((ug) => ug.group.name).join(', ') || '—';
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -96,6 +194,94 @@ export default function UsersPage() {
               Создать пользователя
             </button>
           </div>
+        </div>
+
+        {/* Фильтры */}
+        <div className="bg-white p-6 rounded-lg shadow mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+            {/* Поиск */}
+            <div>
+              <label htmlFor="search" className="block text-sm font-medium text-gray-700 mb-1">
+                Поиск
+              </label>
+              <input
+                type="text"
+                id="search"
+                value={filters.search}
+                onChange={(e) => handleSearch(e.target.value)}
+                placeholder="Поиск по email, имени, фамилии..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+
+            {/* Фильтр по роли */}
+            <div>
+              <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-1">
+                Роль
+              </label>
+              <select
+                id="role"
+                value={filters.role}
+                onChange={(e) => handleRoleFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">Все роли</option>
+                <option value="SUPER_ADMIN">Супер-админ</option>
+                <option value="ADMIN">Админ</option>
+                <option value="USER">Пользователь</option>
+              </select>
+            </div>
+
+            {/* Фильтр по статусу */}
+            <div>
+              <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-1">
+                Статус
+              </label>
+              <select
+                id="status"
+                value={filters.status}
+                onChange={(e) => handleStatusFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">Все статусы</option>
+                <option value="active">Активен</option>
+                <option value="inactive">Неактивен</option>
+              </select>
+            </div>
+
+            {/* Фильтр по группе */}
+            <div>
+              <label htmlFor="group" className="block text-sm font-medium text-gray-700 mb-1">
+                Группа
+              </label>
+              <select
+                id="group"
+                value={filters.group}
+                onChange={(e) => handleGroupFilter(e.target.value)}
+                disabled={groupsLoading}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
+              >
+                <option value="">Все группы</option>
+                {allGroups.map((group) => (
+                  <option key={group.id} value={group.id}>
+                    {group.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Кнопка сброса фильтров */}
+          {hasActiveFilters && (
+            <div className="flex justify-end">
+              <button
+                onClick={resetFilters}
+                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500"
+              >
+                Сбросить фильтры
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Таблица пользователей */}
@@ -122,16 +308,24 @@ export default function UsersPage() {
                   d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"
                 />
               </svg>
-              <h3 className="mt-2 text-sm font-medium text-gray-900">Нет пользователей</h3>
-              <p className="mt-1 text-sm text-gray-500">Начните с создания первого пользователя.</p>
-              <div className="mt-6">
-                <button
-                  onClick={() => router.push('/admin/users/create')}
-                  className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                >
-                  Создать пользователя
-                </button>
-              </div>
+              <h3 className="mt-2 text-sm font-medium text-gray-900">
+                {hasActiveFilters ? 'Пользователи не найдены' : 'Нет пользователей'}
+              </h3>
+              <p className="mt-1 text-sm text-gray-500">
+                {hasActiveFilters
+                  ? 'Попробуйте изменить параметры фильтрации'
+                  : 'Начните с создания первого пользователя.'}
+              </p>
+              {hasActiveFilters && (
+                <div className="mt-6">
+                  <button
+                    onClick={resetFilters}
+                    className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  >
+                    Сбросить фильтры
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             // Список пользователей
@@ -139,34 +333,22 @@ export default function UsersPage() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th
-                      scope="col"
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                    >
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Пользователь
                     </th>
-                    <th
-                      scope="col"
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                    >
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Роль
                     </th>
-                    <th
-                      scope="col"
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                    >
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Статус
                     </th>
-                    <th
-                      scope="col"
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                    >
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Группы
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Дата создания
                     </th>
-                    <th
-                      scope="col"
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                    >
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Действия
                     </th>
                   </tr>
@@ -204,6 +386,9 @@ export default function UsersPage() {
                           {user.isActive ? 'Активен' : 'Неактивен'}
                         </span>
                       </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm text-gray-500 max-w-xs">{getUserGroups(user)}</div>
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {formatDate(user.createdAt)}
                       </td>
@@ -229,26 +414,42 @@ export default function UsersPage() {
           )}
         </div>
 
-        {/* Информация о успешном создании */}
-        <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-md">
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
-                <path
-                  fillRule="evenodd"
-                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            </div>
-            <div className="ml-3">
-              <h3 className="text-sm font-medium text-green-800">Успешно!</h3>
-              <div className="mt-1 text-sm text-green-700">
-                <p>Пользователь успешно создан в базе данных.</p>
+        {/* Пагинация */}
+        {users.length > 0 && (
+          <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6 mt-6 rounded-lg">
+            <div className="flex-1 flex justify-between items-center">
+              <div>
+                <p className="text-sm text-gray-700">
+                  Показано{' '}
+                  <span className="font-medium">
+                    {(pagination.page - 1) * pagination.pageSize + 1}
+                  </span>{' '}
+                  -{' '}
+                  <span className="font-medium">
+                    {Math.min(pagination.page * pagination.pageSize, pagination.total)}
+                  </span>{' '}
+                  из <span className="font-medium">{pagination.total}</span> пользователей
+                </p>
+              </div>
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => setPagination((prev) => ({ ...prev, page: prev.page - 1 }))}
+                  disabled={pagination.page === 1}
+                  className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Назад
+                </button>
+                <button
+                  onClick={() => setPagination((prev) => ({ ...prev, page: prev.page + 1 }))}
+                  disabled={pagination.page * pagination.pageSize >= pagination.total}
+                  className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Вперед
+                </button>
               </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
