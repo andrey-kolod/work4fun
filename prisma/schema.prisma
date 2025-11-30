@@ -1,6 +1,4 @@
-// prisma/schema.prisma
-
-// Генератор Prisma Client - создает TypeScript клиент для работы с БД
+// Генератор Prisma Client
 generator client {
   provider = "prisma-client-js"
 }
@@ -8,68 +6,112 @@ generator client {
 // Настройки подключения к базе данных
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL") // URL берется из переменных окружения
+  url      = env("DATABASE_URL")
 }
 
-// Модель пользователя системы
+// === ENUMS ===
+enum Role {
+  SUPER_ADMIN
+  ADMIN  
+  USER
+}
+
+enum ProjectStatus {
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  REVIEW
+  DONE
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum DelegationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  CANCELLED
+}
+
+enum NotificationType {
+  TASK_ASSIGNED
+  TASK_DELEGATED
+  TASK_STATUS_CHANGED
+  TASK_COMPLETED
+  NEW_COMMENT
+  MENTIONED
+  DEADLINE_SOON
+  DEADLINE_PASSED
+  USER_ACTIVATED
+  USER_DEACTIVATED
+  PROJECT_CREATED
+  GROUP_CREATED
+}
+
+// === MODELS ===
 model User {
-  id         Int      @id @default(autoincrement()) // Первичный ключ, автоинкремент
-  email      String   @unique                       // Уникальный email
-  password   String                                 // Хеш пароля
-  lastName   String?                                // Фамилия (опционально)
-  firstName  String?                                // Имя (опционально)
-  middleName String?                                // Отчество (опционально)
-  role       Role     @default(USER)                // Роль пользователя
-  avatar     String?                                // Аватар (URL)
-  isActive   Boolean  @default(true)                // Активен ли пользователь
+  id         Int      @id @default(autoincrement())
+  email      String   @unique
+  password   String
+  lastName   String?
+  firstName  String?
+  middleName String?
+  role       Role     @default(USER)
+  avatar     String?
+  isActive   Boolean  @default(true)
 
-  // === СВЯЗИ С ПРОЕКТАМИ И ГРУППАМИ ===
+  // Relations
+  userProjects UserProject[]
+  userGroups   UserGroup[]
+  ownedProjects Project[] @relation("ProjectOwner")
+  createdTasks  Task[]    @relation("CreatedTasks")
+  assignedTasks TaskAssignment[]
+  comments      Comment[]
+  notifications Notification[]
+  activityLogs  ActivityLog[]
   
-  // Связи многие-ко-многим с проектами и группами
-  userProjects UserProject[]  // Проекты пользователя
-  userGroups   UserGroup[]    // Группы пользователя
-
-  // Отношения - созданные сущности
-  ownedProjects Project[] @relation("ProjectOwner")    // Созданные проекты
-  createdTasks  Task[]    @relation("TaskCreator")     // Созданные задачи
+  // Delegation relations
+  delegationsSent     TaskDelegation[] @relation("DelegationsFrom")
+  delegationsReceived TaskDelegation[] @relation("DelegationsTo")
   
-  // === ОТНОШЕНИЯ - УЧАСТИЕ В СУЩНОСТЯХ ===
-  assignedTasks   TaskAssignment[]  // Назначенные задачи
-  comments        Comment[]         // Комментарии
-  notifications   Notification[]    // Уведомления
-  activityLogs    ActivityLog[]     // Логи действий
+  // Status history
+  statusChangesMade UserStatusHistory[] @relation("StatusChanger")
+  statusHistory     UserStatusHistory[] @relation("UserStatusHistory")
 
-  // === ОТНОШЕНИЯ - ИСТОРИЯ И ДЕЛЕГИРОВАНИЯ ===
-  statusChangesMade   UserStatusHistory[] @relation("StatusChanger") // Изменения статусов
-  delegationsSent     TaskDelegation[]    @relation("DelegationFrom") // Отправленные делегирования
-  delegationsReceived TaskDelegation[]    @relation("DelegationTo")   // Полученные делегирования
-  statusHistory       UserStatusHistory[] @relation("UserStatusHistory") // История статусов пользователя
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
 
-  // === ТИМСТАМПЫ ===
-  createdAt DateTime @default(now()) // Дата создания
-  updatedAt DateTime @updatedAt      // Дата обновления (автоматически)
-  deletedAt DateTime?                // Мягкое удаление
-
-  @@map("users") // Название таблицы в БД
+  @@map("users")
 }
 
-// Модель проекта
 model Project {
   id          Int           @id @default(autoincrement())
-  name        String        // Название проекта
-  description String?       // Описание проекта
-  ownerId     Int           // Владелец проекта
+  name        String
+  description String?
+  ownerId     Int
   owner       User          @relation("ProjectOwner", fields: [ownerId], references: [id])
-  status      ProjectStatus @default(ACTIVE) // Статус проекта
-  startDate   DateTime?     // Дата начала
-  endDate     DateTime?     // Дата окончания
+  status      ProjectStatus @default(ACTIVE)
+  startDate   DateTime?
+  endDate     DateTime?
 
-  // === СВЯЗИ ===
-  groups       Group[]       // Группы в проекте
-  tasks        Task[]        // Задачи проекта
-  userProjects UserProject[] // Пользователи проекта
+  // Relations
+  groups       Group[]
+  tasks        Task[]
+  userProjects UserProject[]
 
-  // === ТИМСТАМПЫ ===
+  // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   deletedAt DateTime?
@@ -77,19 +119,18 @@ model Project {
   @@map("projects")
 }
 
-// Модель группы (внутри проекта)
 model Group {
   id          Int       @id @default(autoincrement())
-  name        String    // Название группы
-  description String?   // Описание группы
-  projectId   Int       // Проект, к которому принадлежит группа
+  name        String
+  description String?
+  projectId   Int
   project     Project   @relation(fields: [projectId], references: [id])
 
-  // === СВЯЗИ ===
-  users      UserGroup[] // Пользователи группы
-  tasks      Task[]      // Задачи группы
+  // Relations
+  users      UserGroup[]
+  tasks      Task[]
 
-  // === ТИМСТАМПЫ ===
+  // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   deletedAt DateTime?
@@ -97,219 +138,170 @@ model Group {
   @@map("groups")
 }
 
-// Связь многие-ко-многим: Пользователи ↔ Проекты
 model UserProject {
   id        Int     @id @default(autoincrement())
-  userId    Int     // ID пользователя
-  projectId Int     // ID проекта
+  userId    Int
+  projectId Int
+  role      Role    @default(USER)
   user      User    @relation(fields: [userId], references: [id])
   project   Project @relation(fields: [projectId], references: [id])
 
-  @@unique([userId, projectId]) // Уникальная пара пользователь-проект
+  @@unique([userId, projectId])
   @@map("user_projects")
 }
 
-// Связь многие-ко-многим: Пользователи ↔ Группы
 model UserGroup {
   id      Int   @id @default(autoincrement())
-  userId  Int   // ID пользователя
-  groupId Int   // ID группы
+  userId  Int
+  groupId Int
   user    User  @relation(fields: [userId], references: [id])
   group   Group @relation(fields: [groupId], references: [id])
 
-  @@unique([userId, groupId]) // Уникальная пара пользователь-группа
+  @@unique([userId, groupId])
   @@map("user_groups")
 }
 
-// Модель задачи
 model Task {
   id              Int       @id @default(autoincrement())
-  title           String    // Заголовок задачи
-  description     String?   // Описание задачи
-  status          TaskStatus @default(TODO) // Статус задачи
-  priority        Priority   @default(MEDIUM) // Приоритет задачи
-  dueDate         DateTime?  // Срок выполнения
+  title           String
+  description     String?
+  status          TaskStatus @default(TODO)
+  priority        Priority   @default(MEDIUM)
+  dueDate         DateTime?
   
-  // === СВЯЗИ С ПРОЕКТОМ И ГРУППОЙ ===
-  projectId Int     // Проект задачи
+  // Project and group relations
+  projectId Int
   project   Project @relation(fields: [projectId], references: [id])
-  groupId   Int?    // Группа задачи (опционально)
+  groupId   Int?
   group     Group?  @relation(fields: [groupId], references: [id])
   
-  // === СОЗДАТЕЛЬ ЗАДАЧИ ===
-  creatorId Int // ID создателя
-  creator   User @relation("TaskCreator", fields: [creatorId], references: [id])
+  // Creator
+  creatorId Int
+  creator   User @relation("CreatedTasks", fields: [creatorId], references: [id])
   
-  // === ТРЕКИНГ ВРЕМЕНИ ===
-  estimatedHours Int? // Плановое время (часы)
-  actualHours    Int? // Фактическое время (часы)
+  // Time tracking
+  estimatedHours Int?
+  actualHours    Int? @default(0)
 
-  // === СВЯЗИ ===
-  assignments TaskAssignment[] // Назначения на задачу
-  delegations TaskDelegation[] // Делегирования задачи
-  comments    Comment[]        // Комментарии к задаче
+  // Relations
+  assignments TaskAssignment[]
+  delegations TaskDelegation[]
+  comments    Comment[]
 
-  // === ТИМСТАМПЫ ===
+  // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([projectId])
+  @@index([groupId])
+  @@index([creatorId])
+  @@index([status])
+  @@index([priority])
   @@map("tasks")
 }
 
-// Назначение задачи на пользователя
 model TaskAssignment {
-  id          Int      @id @default(autoincrement())
-  taskId      Int      // ID задачи
-  task        Task     @relation(fields: [taskId], references: [id])
-  userId      Int      // ID пользователя
-  user        User     @relation(fields: [userId], references: [id])
-  assignedBy  Int      // Кто назначил
-  assignedAt  DateTime @default(now()) // Когда назначили
-  completedAt DateTime?                // Когда выполнили
+  id        Int      @id @default(autoincrement())
+  taskId    Int
+  task      Task     @relation(fields: [taskId], references: [id])
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  assignedBy Int
+  assignedAt DateTime @default(now())
 
+  @@unique([taskId, userId])
   @@map("task_assignments")
 }
 
-// Делегирование задачи другому пользователю
 model TaskDelegation {
   id          Int              @id @default(autoincrement())
-  taskId      Int              // ID задачи
+  taskId      Int
   task        Task             @relation(fields: [taskId], references: [id])
-  fromUserId  Int              // От кого делегирована
-  fromUser    User             @relation("DelegationFrom", fields: [fromUserId], references: [id])
-  toUserId    Int              // Кому делегирована
-  toUser      User             @relation("DelegationTo", fields: [toUserId], references: [id])
-  reason      String?          // Причина делегирования
-  status      DelegationStatus @default(PENDING) // Статус делегирования
-  delegatedAt DateTime         @default(now())   // Когда делегирована
-  approvedAt  DateTime?                           // Когда подтверждена
+  fromUserId  Int
+  fromUser    User             @relation("DelegationsFrom", fields: [fromUserId], references: [id])
+  toUserId    Int
+  toUser      User             @relation("DelegationsTo", fields: [toUserId], references: [id])
+  status      DelegationStatus @default(PENDING)
+  reason      String?
+  responseNote String?
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
+  @@index([taskId])
+  @@index([fromUserId])
+  @@index([toUserId])
+  @@index([status])
   @@map("task_delegations")
 }
 
-// Комментарии к задачам
 model Comment {
-  id       Int       @id @default(autoincrement())
-  content  String    // Текст комментария
-  taskId   Int       // ID задачи
-  task     Task      @relation(fields: [taskId], references: [id])
-  authorId Int       // Автор комментария
-  author   User      @relation(fields: [authorId], references: [id])
-  parentId Int?      // Родительский комментарий (для ветвления)
-  parent   Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
-  replies  Comment[] @relation("CommentReplies") // Ответы на комментарий
-
-  // === ТИМСТАМПЫ ===
+  id        Int      @id @default(autoincrement())
+  content   String
+  authorId  Int
+  author    User     @relation(fields: [authorId], references: [id])
+  taskId    Int?
+  task      Task?    @relation(fields: [taskId], references: [id])
+  parentId  Int?
+  parent    Comment? @relation("CommentReplies", fields: [parentId], references: [id])
+  replies   Comment[] @relation("CommentReplies")
+  mentions  Json?
+  
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([taskId])
+  @@index([parentId])
   @@map("comments")
 }
 
-// Уведомления для пользователей
 model Notification {
   id         Int              @id @default(autoincrement())
-  type       NotificationType // Тип уведомления
-  title      String           // Заголовок уведомления
-  message    String           // Текст уведомления
-  userId     Int              // Получатель уведомления
+  type       NotificationType
+  title      String
+  message    String
+  userId     Int
   user       User             @relation(fields: [userId], references: [id])
-  entityType String?          // Тип сущности (для ссылки)
-  entityId   Int?             // ID сущности (для ссылки)
-  isRead     Boolean          @default(false) // Прочитано ли
-  isSent     Boolean          @default(false) // Отправлено ли
+  entityType String?
+  entityId   Int?
+  isRead     Boolean          @default(false)
+  isSent     Boolean          @default(false)
 
   createdAt DateTime @default(now())
 
   @@map("notifications")
 }
 
-// Логи действий пользователей (аудит)
 model ActivityLog {
   id         Int     @id @default(autoincrement())
-  userId     Int     // Пользователь, выполнивший действие
+  userId     Int
   user       User    @relation(fields: [userId], references: [id])
-  actionType String  // Тип действия
-  entityType String? // Тип сущности
-  entityId   Int?    // ID сущности
-  oldValues  Json?   // Старые значения (для обновлений)
-  newValues  Json?   // Новые значения
-  ipAddress  String? // IP адрес
-  userAgent  String? // Информация о браузере
+  actionType String
+  entityType String?
+  entityId   Int?
+  oldValues  Json?
+  newValues  Json?
+  ipAddress  String?
+  userAgent  String?
 
   createdAt DateTime @default(now())
 
   @@map("activity_logs")
 }
 
-// История изменений статуса пользователей
 model UserStatusHistory {
   id        Int      @id @default(autoincrement())
-  userId    Int      // Пользователь, чей статус изменили
+  userId    Int
   user      User     @relation("UserStatusHistory", fields: [userId], references: [id])
-  oldStatus Boolean  // Старый статус
-  newStatus Boolean  // Новый статус
-  changedBy Int      // Кто изменил статус
+  oldStatus Boolean
+  newStatus Boolean
+  changedBy Int
   changer   User     @relation("StatusChanger", fields: [changedBy], references: [id])
-  reason    String?  // Причина изменения
-  ipAddress String?  // IP адрес
-  userAgent String?  // Информация о браузере
+  reason    String?
+  ipAddress String?
+  userAgent String?
+  
   createdAt DateTime @default(now())
 
   @@map("user_status_history")
-}
-
-// === ПЕРЕЧИСЛЕНИЯ (ENUMS) ===
-
-// Роли пользователей
-enum Role {
-  SUPER_ADMIN  // Супер-администратор (полные права)
-  ADMIN        // Администратор (расширенные права)
-  USER         // Обычный пользователь
-}
-
-// Статусы проектов
-enum ProjectStatus {
-  ACTIVE    // Активный
-  COMPLETED // Завершенный
-  ARCHIVED  // В архиве
-}
-
-// Статусы задач
-enum TaskStatus {
-  TODO        // К выполнению
-  IN_PROGRESS // В работе
-  REVIEW      // На проверке
-  DONE        // Выполнено
-}
-
-// Приоритеты задач
-enum Priority {
-  LOW    // Низкий
-  MEDIUM // Средний
-  HIGH   // Высокий
-  URGENT // Срочный
-}
-
-// Статусы делегирования
-enum DelegationStatus {
-  PENDING  // Ожидает подтверждения
-  ACCEPTED // Принято
-  REJECTED // Отклонено
-}
-
-// Типы уведомлений
-enum NotificationType {
-  TASK_ASSIGNED       // Задача назначена
-  TASK_DELEGATED      // Задача делегирована
-  TASK_STATUS_CHANGED // Статус задачи изменен
-  TASK_COMPLETED      // Задача завершена
-  NEW_COMMENT         // Новый комментарий
-  MENTIONED           // Упомянули в комментарии
-  DEADLINE_SOON       // Скоро дедлайн
-  DEADLINE_PASSED     // Дедлайн прошел
-  USER_ACTIVATED      // Пользователь активирован
-  USER_DEACTIVATED    // Пользователь деактивирован
-  PROJECT_CREATED     // Проект создан
-  GROUP_CREATED       // Группа создана
 }
