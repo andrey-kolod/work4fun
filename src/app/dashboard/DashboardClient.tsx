@@ -3,7 +3,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useToast } from '@/components/ui/toast';
+import { useToast } from '@/components/ui/Toast';
 import { DashboardClientProps, Project, Task, TaskStat } from '@/types/dashboard';
 
 export function DashboardClient({

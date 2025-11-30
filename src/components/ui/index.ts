@@ -1,11 +1,11 @@
 // src/components/ui/index.ts
 
+// Реэкспортируем все компоненты
 export { Button } from './Button';
 export { Input } from './Input';
-export { Card, CardHeader, CardTitle, CardContent } from './Card';
-export { Table } from './Table';
-export { Modal } from './Modal';
-export { Badge } from './Badge';
+export { Textarea } from './Textarea';
 export { Select } from './Select';
-export { Pagination } from './Pagination';
-export { Loading } from './Loading';
+export { Card, CardHeader, CardTitle, CardContent } from './Card';
+export { Badge } from './Badge';
+export { Modal } from './Modal';
+export { Table } from './Table';

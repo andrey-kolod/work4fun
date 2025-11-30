@@ -1,4 +1,4 @@
-// src/components/ui/toast.tsx
+// src/components/ui/Toast.tsx
 
 'use client';
 

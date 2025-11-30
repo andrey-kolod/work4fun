@@ -1,5 +1,5 @@
 // src/hooks/useToasts.ts
-import { useToast } from '@/components/ui/toast';
+import { useToast } from '@/components/ui/Toast';
 import { useCallback } from 'react';
 
 export function useToasts() {
