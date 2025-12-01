@@ -25,6 +25,12 @@ export default function TasksPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
+  console.log('📄 TasksPage data:', {
+    projects,
+    groups,
+    selectedProjectId,
+    selectedGroupId,
+  });
 
   useEffect(() => {
     async function fetchData() {

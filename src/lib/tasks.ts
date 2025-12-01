@@ -29,17 +29,17 @@ export const canEditTask = (task: Task, userId: number, userRole: string): boole
 };
 
 export const formatTaskDueDate = (dueDate?: Date): string => {
-  if (!dueDate) return 'No deadline';
+  if (!dueDate) return 'Без срока';
 
   const now = new Date();
   const taskDate = new Date(dueDate);
   const diffTime = taskDate.getTime() - now.getTime();
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-  if (diffDays === 0) return 'Today';
-  if (diffDays === 1) return 'Tomorrow';
-  if (diffDays === -1) return 'Yesterday';
-  if (diffDays < 0) return `${Math.abs(diffDays)} days overdue`;
+  if (diffDays === 0) return 'Сегодня';
+  if (diffDays === 1) return 'Завтра';
+  if (diffDays === -1) return 'Вчера';
+  if (diffDays < 0) return `${Math.abs(diffDays)} дней просрочено`;
 
-  return `In ${diffDays} days`;
+  return `Через ${diffDays} дней`;
 };

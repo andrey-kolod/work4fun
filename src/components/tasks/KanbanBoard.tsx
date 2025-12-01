@@ -14,12 +14,13 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
-import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
+import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { Task, TaskStatus } from '@/types/task';
 import { KanbanColumn as KanbanColumnType } from '@/types/kanban';
 import { useTasks, useTaskUpdate } from '@/hooks/useTasks';
 import KanbanColumn from './KanbanColumn';
 import TaskCard from './TaskCard';
+import { CreateTaskModal } from '@/components/modals/CreateTaskModal';
 
 interface KanbanBoardProps {
   projectId?: number;
@@ -43,7 +44,6 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId, groupId }) => {
     })
   );
 
-  // Используем useMemo для стабильной структуры колонок
   const columns = useMemo((): KanbanColumnType[] => {
     const typedTasks: Task[] = tasks || [];
 
@@ -84,38 +84,53 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId, groupId }) => {
     if (!over) return;
 
     const taskId = parseInt(active.id.toString().replace('task-', ''));
-    const newStatus = over.id as TaskStatus;
 
-    // Если задача уже в этой колонке, ничего не делаем
+    // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Правильно определяем статус
+    let newStatus: TaskStatus;
+
+    // Если перетаскиваем на колонку (её ID - это статус)
+    const columnIds = ['TODO', 'IN_PROGRESS', 'REVIEW', 'DONE'];
+
+    if (columnIds.includes(over.id.toString())) {
+      // over - это колонка, используем её ID как статус
+      newStatus = over.id as TaskStatus;
+    } else {
+      // over - это задача, находим статус целевой задачи
+      const targetTaskId = over.id.toString().replace('task-', '');
+      const targetTask = tasks.find((task: Task) => task.id === parseInt(targetTaskId));
+
+      if (!targetTask) {
+        console.warn('Целевая задача не найдена');
+        return;
+      }
+
+      newStatus = targetTask.status;
+    }
+
     const taskToUpdate = tasks.find((task: Task) => task.id === taskId);
     if (!taskToUpdate || taskToUpdate.status === newStatus) return;
 
     const originalStatus = taskToUpdate.status;
 
     try {
-      // Оптимистичное обновление
       const updatedTasks = tasks.map((task: Task) =>
         task.id === taskId ? { ...task, status: newStatus } : task
       );
 
       mutate({ tasks: updatedTasks }, false);
 
-      // Отправляем запрос на сервер
       await updateTaskStatus(taskId, newStatus);
 
-      // Ревалидируем данные с сервера
       mutate();
     } catch (error) {
       console.error('Error updating task status:', error);
 
-      // В случае ошибки возвращаем задачу в исходный статус
       const revertedTasks = tasks.map((task: Task) =>
         task.id === taskId ? { ...task, status: originalStatus } : task
       );
 
       mutate({ tasks: revertedTasks }, false);
 
-      // Показываем сообщение об ошибке
       alert('Не удалось обновить статус задачи. Пожалуйста, попробуйте еще раз.');
     }
   };
@@ -140,6 +155,22 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId, groupId }) => {
 
   return (
     <div className="kanban-board">
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h1 className="text-2xl font-bold">Kanban доска</h1>
+          <p className="text-gray-600">
+            Перетаскивайте задачи между колонками для изменения статуса
+          </p>
+        </div>
+
+        {/* CreateTaskModal теперь сам загружает данные */}
+        <CreateTaskModal
+          onSuccess={() => {
+            mutate();
+          }}
+        />
+      </div>
+
       <DndContext
         sensors={sensors}
         collisionDetection={closestCorners}
@@ -155,7 +186,6 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId, groupId }) => {
         <DragOverlay>{activeTask && <TaskCard task={activeTask} />}</DragOverlay>
       </DndContext>
 
-      {/* Подсказка для пользователя */}
       {isDragging && (
         <div className="fixed bottom-4 right-4 bg-purple-600 text-white px-4 py-2 rounded-lg shadow-lg animate-pulse">
           Перетащите задачу в нужную колонку
