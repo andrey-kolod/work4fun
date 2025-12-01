@@ -1,31 +1,30 @@
 // src/lib/tasks.ts
+
 import { Task, TaskStatus, TaskPriority } from '@/types/task';
 
-export const getStatusColor = (status: TaskStatus): string => {
-  const colors: Record<TaskStatus, string> = {
+export const getStatusColor = (status: TaskStatus | string): string => {
+  const colors: Record<TaskStatus | string, string> = {
     TODO: 'bg-gray-500',
     IN_PROGRESS: 'bg-blue-500',
     REVIEW: 'bg-yellow-500',
     DONE: 'bg-green-500',
   };
-  return colors[status];
+  return colors[status] || 'bg-gray-500';
 };
 
-export const getPriorityColor = (priority: TaskPriority): string => {
-  const colors: Record<TaskPriority, string> = {
+export const getPriorityColor = (priority: TaskPriority | string): string => {
+  const colors: Record<TaskPriority | string, string> = {
     LOW: 'text-green-600',
     MEDIUM: 'text-yellow-600',
     HIGH: 'text-orange-600',
     URGENT: 'text-red-600',
   };
-  return colors[priority];
+  return colors[priority] || 'text-gray-600';
 };
 
 export const canEditTask = (task: Task, userId: number, userRole: string): boolean => {
   if (userRole === 'SUPER_ADMIN') return true;
   if (task.creatorId === userId) return true;
-
-  // Additional project admin checks can be added here
   return false;
 };
 

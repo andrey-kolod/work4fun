@@ -5,6 +5,7 @@ export type TaskPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
 export type DelegationStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'CANCELLED';
 
 // Base interfaces for relations
+// Обновляем интерфейс User
 export interface User {
   id: number;
   email: string;
@@ -14,6 +15,7 @@ export interface User {
   role: string;
   avatar?: string;
   isActive: boolean;
+  name?: string;
 }
 
 export interface Project {

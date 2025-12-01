@@ -60,7 +60,7 @@ module.exports = {
   },
 
   // plugins: дополнительные плагины Tailwind
-  plugins: [],
+  plugins: [require('@tailwindcss/forms'), require('@tailwindcss/typography')],
 };
 
 // ВАЖНО: НЕ ИСПОЛЬЗУЕМ export default в .js файлах!
