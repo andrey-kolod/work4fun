@@ -1,5 +1,3 @@
-// src/app/api/tasks/[id]/status/route.ts
-
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
@@ -8,7 +6,7 @@ import { prisma } from '@/lib/prisma';
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await getServerSession(authOptions);
-    const { id } = await params;
+    const { id } = await params; // ⬅️ ВАЖНО: await для Next.js 15
 
     if (!session?.user?.email) {
       return NextResponse.json({ error: 'Не авторизован' }, { status: 401 });
@@ -78,7 +76,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       where: { id: taskId },
       data: {
         status,
-        updatedAt: new Date(), // Явно обновляем время
+        updatedAt: new Date(),
       },
       include: {
         project: true,
@@ -115,46 +113,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         entityId: taskId,
         oldValues: JSON.stringify({ status: task.status }),
         newValues: JSON.stringify({ status: status }),
-        ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
-        userAgent: request.headers.get('user-agent') || 'unknown',
       },
     });
-
-    // Создаем уведомление если задача завершена
-    if (status === 'DONE' && task.status !== 'DONE') {
-      // Уведомление создателю
-      if (task.creatorId !== user.id) {
-        await prisma.notification.create({
-          data: {
-            type: 'TASK_COMPLETED',
-            title: 'Задача завершена',
-            message: `Задача "${task.title}" была отмечена как выполненная`,
-            userId: task.creatorId,
-            entityType: 'Task',
-            entityId: taskId,
-            isRead: false,
-            isSent: false,
-          },
-        });
-      }
-
-      // Уведомления всем исполнителям кроме текущего пользователя
-      const otherAssignees = task.assignments.filter((a) => a.userId !== user.id);
-      for (const assignment of otherAssignees) {
-        await prisma.notification.create({
-          data: {
-            type: 'TASK_COMPLETED',
-            title: 'Задача завершена',
-            message: `Задача "${task.title}" была отмечена как выполненная`,
-            userId: assignment.userId,
-            entityType: 'Task',
-            entityId: taskId,
-            isRead: false,
-            isSent: false,
-          },
-        });
-      }
-    }
 
     return NextResponse.json(updatedTask);
   } catch (error) {

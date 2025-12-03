@@ -1,8 +1,9 @@
 // src/components/forms/TaskForm.tsx
+
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-import { useForm } from 'react-hook-form';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
 import { TaskFormValues, taskFormSchema } from '@/schemas/task';
@@ -22,9 +23,9 @@ interface TaskFormProps {
 
 export function TaskForm({
   initialData,
-  projects,
-  groups,
-  users,
+  projects = [],
+  groups = [],
+  users = [],
   onSuccess,
   onCancel,
   mode = 'create',
@@ -39,9 +40,9 @@ export function TaskForm({
   );
 
   // Создаем безопасные версии массивов
-  const safeProjects = useMemo(() => projects || [], [projects]);
-  const safeGroups = useMemo(() => groups || [], [groups]);
-  const safeUsers = useMemo(() => users || [], [users]);
+  const safeProjects = useMemo(() => projects, [projects]);
+  const safeGroups = useMemo(() => groups, [groups]);
+  const safeUsers = useMemo(() => users, [users]);
 
   const {
     filteredGroups,
@@ -62,7 +63,7 @@ export function TaskForm({
     register,
     handleSubmit,
     formState: { errors },
-    watch,
+    control,
     setValue,
   } = useForm<TaskFormValues>({
     resolver: zodResolver(taskFormSchema),
@@ -80,8 +81,49 @@ export function TaskForm({
     },
   });
 
-  const watchProjectId = watch('projectId');
-  const watchGroupId = watch('groupId');
+  // Используем useWatch вместо watch для совместимости с React Compiler
+  const watchProjectId = useWatch({ control, name: 'projectId' });
+  const watchGroupId = useWatch({ control, name: 'groupId' });
+  const watchPriority = useWatch({ control, name: 'priority' });
+  const watchStatus = useWatch({ control, name: 'status' });
+  const watchDueDate = useWatch({ control, name: 'dueDate' });
+
+  // Мемоизируем обработчики
+  const handleProjectChange = useCallback(
+    (value: string) => {
+      setValue('projectId', value);
+      setValue('groupId', '');
+    },
+    [setValue]
+  );
+
+  const handleGroupChange = useCallback(
+    (value: string) => {
+      setValue('groupId', value);
+    },
+    [setValue]
+  );
+
+  const handlePriorityChange = useCallback(
+    (value: string) => {
+      setValue('priority', value as any);
+    },
+    [setValue]
+  );
+
+  const handleStatusChange = useCallback(
+    (value: string) => {
+      setValue('status', value as any);
+    },
+    [setValue]
+  );
+
+  const handleDueDateChange = useCallback(
+    (value: string) => {
+      setValue('dueDate', value);
+    },
+    [setValue]
+  );
 
   // Обновляем assigneeIds в форме при изменении selectedAssignees
   useEffect(() => {
@@ -92,9 +134,8 @@ export function TaskForm({
   useEffect(() => {
     if (watchProjectId) {
       filterGroupsByProject(watchProjectId);
-      setValue('groupId', '');
     }
-  }, [watchProjectId, setValue, filterGroupsByProject]);
+  }, [watchProjectId, filterGroupsByProject]);
 
   // Обновляем доступных исполнителей
   useEffect(() => {
@@ -116,9 +157,10 @@ export function TaskForm({
         assigneeIds: selectedAssignees.map((id) => parseInt(id, 10)),
         tags,
       };
+
       const dataForHook = {
         ...formData,
-        assigneeIds: selectedAssignees, // Уже массив строк
+        assigneeIds: selectedAssignees,
         tags,
       };
 
@@ -131,41 +173,47 @@ export function TaskForm({
     }
   };
 
-  const addTag = () => {
+  const addTag = useCallback(() => {
     const trimmedTag = tagInput.trim();
     if (trimmedTag && !tags.includes(trimmedTag)) {
       setTags([...tags, trimmedTag]);
       setTagInput('');
     }
-  };
+  }, [tagInput, tags]);
 
-  const removeTag = (tagToRemove: string) => {
-    setTags(tags.filter((tag) => tag !== tagToRemove));
-  };
+  const removeTag = useCallback(
+    (tagToRemove: string) => {
+      setTags(tags.filter((tag) => tag !== tagToRemove));
+    },
+    [tags]
+  );
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && tagInput.trim()) {
-      e.preventDefault();
-      addTag();
-    }
-  };
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        addTag();
+      }
+    },
+    [addTag]
+  );
 
-  const toggleAssignee = (userId: string) => {
+  const toggleAssignee = useCallback((userId: string) => {
     setSelectedAssignees((prev) =>
       prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
     );
-  };
+  }, []);
 
-  const getUserDisplayName = (user: any) => {
+  const getUserDisplayName = useCallback((user: any) => {
     if (!user) return 'Неизвестный пользователь';
     if (user.name) return user.name;
     if (user.firstName && user.lastName) return `${user.firstName} ${user.lastName}`;
     if (user.firstName) return user.firstName;
     if (user.lastName) return user.lastName;
     return user.email || 'Неизвестный пользователь';
-  };
+  }, []);
 
-  const formatDateForInput = (dateString?: string | null) => {
+  const formatDateForInput = useCallback((dateString?: string | null) => {
     if (!dateString) return '';
     try {
       const date = new Date(dateString);
@@ -173,9 +221,9 @@ export function TaskForm({
     } catch {
       return '';
     }
-  };
+  }, []);
 
-  const handleCancel = () => {
+  const handleCancel = useCallback(() => {
     if (onCancel) {
       onCancel();
     } else if (mode === 'edit') {
@@ -183,7 +231,57 @@ export function TaskForm({
     } else if (mode === 'create') {
       window.history.back();
     }
-  };
+  }, [onCancel, mode, router]);
+
+  // Мемоизируем опции для селектов
+  const projectOptions = useMemo(
+    () => [
+      { value: '', label: 'Выберите проект' },
+      ...safeProjects.map((project: any) => ({
+        value: project.id?.toString() || '',
+        label: project.name || 'Без названия',
+      })),
+    ],
+    [safeProjects]
+  );
+
+  const groupOptions = useMemo(
+    () => [
+      {
+        value: '',
+        label: !watchProjectId
+          ? 'Сначала выберите проект'
+          : filteredGroups.length === 0
+            ? 'Нет доступных групп'
+            : 'Выберите группу',
+      },
+      ...filteredGroups.map((group: any) => ({
+        value: group.id?.toString() || '',
+        label: group.name || 'Без названия',
+      })),
+    ],
+    [watchProjectId, filteredGroups]
+  );
+
+  const priorityOptions = useMemo(
+    () => [
+      { value: 'LOW', label: 'Низкий' },
+      { value: 'MEDIUM', label: 'Средний' },
+      { value: 'HIGH', label: 'Высокий' },
+      { value: 'URGENT', label: 'Срочный' },
+    ],
+    []
+  );
+
+  const statusOptions = useMemo(
+    () => [
+      { value: 'TODO', label: 'К выполнению' },
+      { value: 'IN_PROGRESS', label: 'В работе' },
+      { value: 'REVIEW', label: 'На проверке' },
+      { value: 'DONE', label: 'Завершено' },
+    ],
+    []
+  );
 
   return (
     <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
@@ -221,17 +319,8 @@ export function TaskForm({
               <label className="block text-sm font-medium mb-1">Проект *</label>
               <Select
                 value={watchProjectId}
-                onChange={(e) => {
-                  setValue('projectId', e.target.value);
-                  setValue('groupId', '');
-                }}
-                options={[
-                  { value: '', label: 'Выберите проект' },
-                  ...safeProjects.map((project: any) => ({
-                    value: project.id?.toString() || '',
-                    label: project.name || 'Без названия',
-                  })),
-                ]}
+                onChange={(e) => handleProjectChange(e.target.value)}
+                options={projectOptions}
               />
               {errors.projectId && (
                 <p className="text-red-500 text-sm mt-1">{errors.projectId.message}</p>
@@ -242,21 +331,8 @@ export function TaskForm({
               <label className="block text-sm font-medium mb-1">Группа *</label>
               <Select
                 value={watchGroupId}
-                onChange={(e) => setValue('groupId', e.target.value)}
-                options={[
-                  {
-                    value: '',
-                    label: !watchProjectId
-                      ? 'Сначала выберите проект'
-                      : filteredGroups.length === 0
-                        ? 'Нет доступных групп'
-                        : 'Выберите группу',
-                  },
-                  ...filteredGroups.map((group: any) => ({
-                    value: group.id?.toString() || '',
-                    label: group.name || 'Без названия',
-                  })),
-                ]}
+                onChange={(e) => handleGroupChange(e.target.value)}
+                options={groupOptions}
                 disabled={!watchProjectId || filteredGroups.length === 0}
               />
               {errors.groupId && (
@@ -270,14 +346,9 @@ export function TaskForm({
             <div>
               <label className="block text-sm font-medium mb-1">Приоритет</label>
               <Select
-                value={watch('priority')}
-                onChange={(e) => setValue('priority', e.target.value as any)}
-                options={[
-                  { value: 'LOW', label: 'Низкий' },
-                  { value: 'MEDIUM', label: 'Средний' },
-                  { value: 'HIGH', label: 'Высокий' },
-                  { value: 'URGENT', label: 'Срочный' },
-                ]}
+                value={watchPriority}
+                onChange={(e) => handlePriorityChange(e.target.value)}
+                options={priorityOptions}
               />
             </div>
 
@@ -285,14 +356,9 @@ export function TaskForm({
               <div>
                 <label className="block text-sm font-medium mb-1">Статус</label>
                 <Select
-                  value={watch('status')}
-                  onChange={(e) => setValue('status', e.target.value as any)}
-                  options={[
-                    { value: 'TODO', label: 'К выполнению' },
-                    { value: 'IN_PROGRESS', label: 'В работе' },
-                    { value: 'REVIEW', label: 'На проверке' },
-                    { value: 'DONE', label: 'Завершено' },
-                  ]}
+                  value={watchStatus}
+                  onChange={(e) => handleStatusChange(e.target.value)}
+                  options={statusOptions}
                 />
               </div>
             )}
@@ -306,8 +372,8 @@ export function TaskForm({
             <label className="block text-sm font-medium mb-1">Срок выполнения</label>
             <input
               type="date"
-              value={formatDateForInput(watch('dueDate'))}
-              onChange={(e) => setValue('dueDate', e.target.value)}
+              value={formatDateForInput(watchDueDate)}
+              onChange={(e) => handleDueDateChange(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -467,7 +533,7 @@ export function TaskForm({
             Отмена
           </Button>
           <Button type="submit" disabled={loading}>
-            {loading ? 'Сохранение...' : 'Создать задачу'}
+            {loading ? 'Сохранение...' : mode === 'edit' ? 'Сохранить изменения' : 'Создать задачу'}
           </Button>
         </div>
       </div>

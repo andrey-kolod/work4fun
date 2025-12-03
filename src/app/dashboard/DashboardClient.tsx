@@ -4,7 +4,10 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/components/ui/Toast';
-import { DashboardClientProps, Project, Task, TaskStat } from '@/types/dashboard';
+import { useAppStore } from '@/store/useAppStore';
+import { DashboardClientProps, TaskStat } from '@/types/dashboard';
+import { SimpleProject, Task } from '@/types';
+import { Loading } from '@/components/ui/Loading';
 
 export function DashboardClient({
   dashboardData,
@@ -13,22 +16,31 @@ export function DashboardClient({
   userName,
   currentProjectId,
 }: DashboardClientProps) {
+  const router = useRouter();
+  const { addToast } = useToast();
+  const { setSelectedProject, selectedProject } = useAppStore();
+
   const [activeProjectId, setActiveProjectId] = useState(currentProjectId);
   const [dashboardDataState, setDashboardDataState] = useState(dashboardData);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { addToast } = useToast();
   const abortControllerRef = useRef<AbortController | null>(null);
   const dataCacheRef = useRef<Map<number, typeof dashboardData>>(new Map());
-  const router = useRouter();
 
   // 🔧 Инициализируем кэш начальными данными
   useEffect(() => {
-    if (currentProjectId && dashboardData) {
+    if (currentProjectId && dashboardData && userProjects.length > 0) {
       dataCacheRef.current.set(currentProjectId, dashboardData);
+
+      // Сохраняем проект в стор
+      const project = userProjects.find((p: SimpleProject) => p.id === currentProjectId);
+      if (project) {
+        setSelectedProject(project);
+        console.log('[DashboardClient] Initialized selected project:', project);
+      }
     }
-  }, [currentProjectId, dashboardData]);
+  }, [currentProjectId, dashboardData, userProjects, setSelectedProject]);
 
   // 🔧 Функция сохранения проекта в cookies
   const saveProjectToCookies = async (projectId: number) => {
@@ -49,38 +61,12 @@ export function DashboardClient({
     }
   };
 
-  // 🔧 Функция повторной попытки
-  const handleRetry = useCallback(() => {
-    if (error) {
-      addToast({
-        type: 'info',
-        title: 'Повторная загрузка',
-        description: 'Пытаемся загрузить данные снова...',
-        duration: 3000,
-      });
-      handleProjectChange(activeProjectId);
-    }
-  }, [error, activeProjectId]);
-
-  // 🔧 Функция очистки кэша
-  const clearCache = useCallback(() => {
-    const cacheSize = dataCacheRef.current.size;
-    dataCacheRef.current.clear();
-
-    addToast({
-      type: 'info',
-      title: 'Кэш очищен',
-      description: `Удалено ${cacheSize} проектов из кэша`,
-      duration: 3000,
-    });
-
-    console.log('🧹 Кэш данных очищен');
-  }, [addToast]);
-
-  // 🔧 Основная функция смены проекта
+  // 🔧 Функция смены проекта
   const handleProjectChange = useCallback(
     async (projectId: number) => {
-      if (projectId === activeProjectId) return;
+      if (projectId === activeProjectId || !projectId) return;
+
+      console.log(`🔄 Changing project from ${activeProjectId} to ${projectId}`);
 
       try {
         // 🚫 Отменяем предыдущий запрос
@@ -91,20 +77,33 @@ export function DashboardClient({
         setActiveProjectId(projectId);
         setError(null);
 
+        // 🔍 Находим проект и сохраняем в стор
+        const project = userProjects.find((p: SimpleProject) => p.id === projectId);
+        if (project) {
+          setSelectedProject(project);
+          console.log('[DashboardClient] Project saved to store:', project);
+        }
+
+        // 🔍 Сохраняем в cookies
+        await saveProjectToCookies(projectId);
+
+        // 🔍 Обновляем URL без перезагрузки страницы
+        const newUrl = `/dashboard?projectId=${projectId}`;
+        router.replace(newUrl);
+        console.log(`📍 URL updated to: ${newUrl}`);
+
         // 🔍 Проверяем кэш
         const cachedData = dataCacheRef.current.get(projectId);
         if (cachedData) {
-          console.log(`📦 Используем кэшированные данные для проекта ${projectId}`);
+          console.log(`📦 Using cached data for project ${projectId}`);
           setDashboardDataState(cachedData);
 
           addToast({
             type: 'success',
             title: 'Данные загружены из кэша',
-            description: `Проект "${userProjects.find((p: Project) => p.id === projectId)?.name}"`,
+            description: `Проект "${project?.name || 'Неизвестный'}"`,
             duration: 3000,
           });
-
-          await saveProjectToCookies(projectId);
           return;
         }
 
@@ -113,7 +112,7 @@ export function DashboardClient({
         addToast({
           type: 'info',
           title: 'Загружаем данные...',
-          description: `Проект "${userProjects.find((p: Project) => p.id === projectId)?.name}"`,
+          description: `Проект "${project?.name || 'Неизвестный'}"`,
           duration: 0,
         });
 
@@ -133,6 +132,7 @@ export function DashboardClient({
           method: 'GET',
           headers: { 'Content-Type': 'application/json' },
           signal,
+          cache: 'no-store',
         });
 
         clearTimeout(timeoutId);
@@ -152,20 +152,21 @@ export function DashboardClient({
         }
 
         const newDashboardData = await response.json();
-        dataCacheRef.current.set(projectId, newDashboardData);
 
+        // 🔧 Добавляем проект в данные если его нет
+        if (!newDashboardData.project && project) {
+          newDashboardData.project = project;
+        }
+
+        dataCacheRef.current.set(projectId, newDashboardData);
         setDashboardDataState(newDashboardData);
 
         addToast({
           type: 'success',
           title: 'Данные загружены',
-          description: `Проект "${
-            userProjects.find((p: Project) => p.id === projectId)?.name
-          }" успешно загружен`,
+          description: `Проект "${project?.name || 'Неизвестный'}" успешно загружен`,
           duration: 4000,
         });
-
-        await saveProjectToCookies(projectId);
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') {
           addToast({
@@ -181,7 +182,14 @@ export function DashboardClient({
         const errorMessage = err instanceof Error ? err.message : 'Неизвестная ошибка';
         setError(errorMessage);
 
-        setActiveProjectId(currentProjectId);
+        // Возвращаем на предыдущий проект
+        const previousProjectId = currentProjectId;
+        setActiveProjectId(previousProjectId);
+
+        const previousProject = userProjects.find((p: SimpleProject) => p.id === previousProjectId);
+        if (previousProject) {
+          setSelectedProject(previousProject);
+        }
 
         addToast({
           type: 'error',
@@ -194,45 +202,20 @@ export function DashboardClient({
         setIsLoading(false);
       }
     },
-    [activeProjectId, currentProjectId, userProjects, addToast]
+    [activeProjectId, currentProjectId, userProjects, setSelectedProject, addToast, router]
   );
 
-  // 🔧 Функция предзагрузки соседних проектов
-  const preloadNextProject = useCallback(
-    async (currentProjectId: number) => {
-      const currentIndex = userProjects.findIndex((p: Project) => p.id === currentProjectId);
-      if (currentIndex === -1) return;
-
-      const projectsToPreload = [
-        userProjects[currentIndex - 1]?.id,
-        userProjects[currentIndex + 1]?.id,
-      ].filter((id): id is number => id !== undefined);
-
-      for (const projectId of projectsToPreload) {
-        if (dataCacheRef.current.has(projectId)) continue;
-
-        try {
-          const response = await fetch(`/api/dashboard?projectId=${projectId}`);
-          if (response.ok) {
-            const data = await response.json();
-            dataCacheRef.current.set(projectId, data);
-
-            if (process.env.NODE_ENV === 'development') {
-              console.log(`🔮 Предзагружены данные для проекта ${projectId}`);
-            }
-          }
-        } catch (err) {
-          console.log(`⚠️ Не удалось предзагрузить проект ${projectId}`);
-        }
-      }
-    },
-    [userProjects]
-  );
+  // 🔧 Обработчик изменения селекта
+  const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newProjectId = Number(e.target.value);
+    console.log(`🎯 Select changed to project: ${newProjectId}`);
+    handleProjectChange(newProjectId);
+  };
 
   // 🔧 Вспомогательная функция для отображения имени пользователя
   const getUserDisplayName = (user: {
-    firstName: string | null;
-    lastName: string | null;
+    firstName?: string | null;
+    lastName?: string | null;
     email: string;
   }): string => {
     if (user.firstName && user.lastName) {
@@ -241,8 +224,16 @@ export function DashboardClient({
     return user.firstName || user.lastName || user.email;
   };
 
+  if (isLoading && !dashboardDataState) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loading size="lg" />
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background pt-6">
       <div className="container mx-auto px-6 py-8">
         {/* Заголовок с селектором проекта */}
         <div className="mb-8">
@@ -254,47 +245,49 @@ export function DashboardClient({
 
               <div className="flex items-center gap-4 mt-2">
                 {/* Селектор проекта */}
-                <div className="relative">
-                  <select
-                    value={activeProjectId}
-                    onChange={(e) => {
-                      const newProjectId = Number(e.target.value);
-                      handleProjectChange(newProjectId);
-                      preloadNextProject(newProjectId);
-                    }}
-                    disabled={isLoading}
-                    className={`
-                      px-3 py-2 border rounded-lg bg-white min-w-[200px]
-                      transition-all duration-200 ease-in-out
-                      ${
-                        isLoading
-                          ? 'border-gray-300 text-gray-400 cursor-not-allowed opacity-70'
-                          : 'border-gray-300 hover:border-primary focus:border-primary focus:ring-2 focus:ring-primary/20 cursor-pointer'
-                      }
-                      ${error ? 'border-red-300 ring-2 ring-red-100' : ''}
-                    `}
-                  >
-                    {userProjects.map((project: Project) => (
-                      <option key={project.id} value={project.id}>
-                        {project.name}
-                        {dataCacheRef.current.has(project.id) && ' ⚡'}
-                      </option>
-                    ))}
-                  </select>
+                {userProjects.length > 0 ? (
+                  <div className="relative">
+                    <select
+                      value={activeProjectId}
+                      onChange={handleSelectChange}
+                      disabled={isLoading}
+                      className={`
+                        px-3 py-2 border rounded-lg bg-white min-w-[200px]
+                        transition-all duration-200 ease-in-out
+                        ${
+                          isLoading
+                            ? 'border-gray-300 text-gray-400 cursor-not-allowed opacity-70'
+                            : 'border-gray-300 hover:border-primary focus:border-primary focus:ring-2 focus:ring-primary/20 cursor-pointer'
+                        }
+                        ${error ? 'border-red-300 ring-2 ring-red-100' : ''}
+                      `}
+                    >
+                      {userProjects.map((project: SimpleProject) => (
+                        <option key={project.id} value={project.id}>
+                          {project.name}
+                          {dataCacheRef.current.has(project.id) && ' ⚡'}
+                        </option>
+                      ))}
+                    </select>
 
-                  {isLoading && (
-                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent"></div>
-                    </div>
-                  )}
-                </div>
+                    {isLoading && (
+                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                        <Loading size="sm" />
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500 min-w-[200px]">
+                    Нет доступных проектов
+                  </div>
+                )}
 
                 {/* Информация о проекте */}
                 <div className="flex items-center gap-3">
                   <span className="text-text-secondary">
                     Проект:{' '}
                     <span className="font-semibold text-primary">
-                      {userProjects.find((p: Project) => p.id === activeProjectId)?.name}
+                      {selectedProject?.name || 'Не выбран'}
                     </span>
                   </span>
 
@@ -323,7 +316,7 @@ export function DashboardClient({
                     </div>
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={handleRetry}
+                        onClick={() => handleProjectChange(activeProjectId)}
                         className="px-3 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors text-sm"
                       >
                         Повторить
@@ -340,76 +333,18 @@ export function DashboardClient({
               )}
             </div>
 
-            {/* Кнопка очистки кэша (только для разработки) */}
-            {process.env.NODE_ENV === 'development' && (
+            {/* Кнопка перехода на Kanban доску */}
+            {selectedProject && (
               <button
-                onClick={clearCache}
-                className="px-3 py-2 text-sm bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors flex items-center gap-2"
-                title="Очистить кэш данных"
+                onClick={() => router.push(`/tasks?projectId=${selectedProject.id}`)}
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
               >
-                🧹
-                <span className="hidden sm:inline">Очистить кэш</span>
+                <span>✅</span>
+                <span>Kanban доска</span>
               </button>
             )}
           </div>
         </div>
-
-        {/* Демо тосты для тестирования (только для разработки) */}
-        {process.env.NODE_ENV === 'development' && (
-          <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-            <h4 className="text-sm font-semibold text-blue-800 mb-2">Тест toast-уведомлений:</h4>
-            <div className="flex gap-2 flex-wrap">
-              <button
-                onClick={() =>
-                  addToast({
-                    type: 'success',
-                    title: 'Успех!',
-                    description: 'Операция выполнена успешно',
-                  })
-                }
-                className="px-3 py-1 bg-green-500 text-white rounded text-sm hover:bg-green-600"
-              >
-                ✅ Успех
-              </button>
-              <button
-                onClick={() =>
-                  addToast({
-                    type: 'error',
-                    title: 'Ошибка!',
-                    description: 'Что-то пошло не так',
-                  })
-                }
-                className="px-3 py-1 bg-red-500 text-white rounded text-sm hover:bg-red-600"
-              >
-                ❌ Ошибка
-              </button>
-              <button
-                onClick={() =>
-                  addToast({
-                    type: 'warning',
-                    title: 'Предупреждение',
-                    description: 'Будьте внимательны',
-                  })
-                }
-                className="px-3 py-1 bg-yellow-500 text-white rounded text-sm hover:bg-yellow-600"
-              >
-                ⚠️ Предупреждение
-              </button>
-              <button
-                onClick={() =>
-                  addToast({
-                    type: 'info',
-                    title: 'Информация',
-                    description: 'Это информационное сообщение',
-                  })
-                }
-                className="px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
-              >
-                ℹ️ Информация
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* Основной контент дашборда */}
         <div
@@ -478,42 +413,42 @@ export function DashboardClient({
               </span>
             </div>
             <div className="space-y-3">
-              {dashboardDataState.recentTasks.map((task: Task) => (
-                <div
-                  key={task.id}
-                  className="flex items-center justify-between p-4 border border-gray-100 rounded-lg hover:border-primary/30 hover:shadow-sm transition-all duration-200"
-                >
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-medium text-text-primary truncate">{task.title}</h4>
-                    <div className="flex items-center gap-2 mt-1">
-                      <p className="text-sm text-text-secondary">
-                        {getUserDisplayName(task.creator)}
-                      </p>
-                      {task.group && (
-                        <>
-                          <span className="text-gray-300">•</span>
-                          <span className="text-sm text-text-secondary">{task.group.name}</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                  <span
-                    className={`
-                    px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ml-4
-                    ${task.status === 'DONE' ? 'bg-green-100 text-green-800' : ''}
-                    ${task.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-800' : ''}
-                    ${task.status === 'TODO' ? 'bg-gray-100 text-gray-800' : ''}
-                  `}
+              {dashboardDataState.recentTasks.length > 0 ? (
+                dashboardDataState.recentTasks.map((task: Task) => (
+                  <div
+                    key={task.id}
+                    className="flex items-center justify-between p-4 border border-gray-100 rounded-lg hover:border-primary/30 hover:shadow-sm transition-all duration-200"
                   >
-                    {task.status === 'DONE' && '✅ '}
-                    {task.status === 'IN_PROGRESS' && '🔄 '}
-                    {task.status === 'TODO' && '📝 '}
-                    {task.status}
-                  </span>
-                </div>
-              ))}
-
-              {dashboardDataState.recentTasks.length === 0 && (
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-medium text-text-primary truncate">{task.title}</h4>
+                      <div className="flex items-center gap-2 mt-1">
+                        <p className="text-sm text-text-secondary">
+                          {getUserDisplayName(task.creator || { email: 'Неизвестный' })}
+                        </p>
+                        {task.group && (
+                          <>
+                            <span className="text-gray-300">•</span>
+                            <span className="text-sm text-text-secondary">{task.group.name}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <span
+                      className={`
+                      px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ml-4
+                      ${task.status === 'DONE' ? 'bg-green-100 text-green-800' : ''}
+                      ${task.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-800' : ''}
+                      ${task.status === 'TODO' ? 'bg-gray-100 text-gray-800' : ''}
+                    `}
+                    >
+                      {task.status === 'DONE' && '✅ '}
+                      {task.status === 'IN_PROGRESS' && '🔄 '}
+                      {task.status === 'TODO' && '📝 '}
+                      {task.status}
+                    </span>
+                  </div>
+                ))
+              ) : (
                 <div className="text-center py-8 text-text-secondary">
                   <div className="text-4xl mb-2">📝</div>
                   <p>В этом проекте пока нет задач</p>

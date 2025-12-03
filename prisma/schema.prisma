@@ -71,14 +71,14 @@ model User {
   isActive   Boolean  @default(true)
 
   // Relations
-  userProjects UserProject[]
-  userGroups   UserGroup[]
-  ownedProjects Project[] @relation("ProjectOwner")
-  createdTasks  Task[]    @relation("CreatedTasks")
-  assignedTasks TaskAssignment[]
-  comments      Comment[]
-  notifications Notification[]
-  activityLogs  ActivityLog[]
+  userProjects     UserProject[]
+  userGroups       UserGroup[]
+  ownedProjects    Project[]         @relation("ProjectOwner")
+  createdTasks     Task[]            @relation("CreatedTasks")
+  assignedTasks    TaskAssignment[]
+  comments         Comment[]
+  notifications    Notification[]
+  activityLogs     ActivityLog[]
   
   // Delegation relations
   delegationsSent     TaskDelegation[] @relation("DelegationsFrom")
@@ -295,8 +295,8 @@ model UserStatusHistory {
   user      User     @relation("UserStatusHistory", fields: [userId], references: [id])
   oldStatus Boolean
   newStatus Boolean
-  changedBy Int
-  changer   User     @relation("StatusChanger", fields: [changedBy], references: [id])
+  changedById Int
+  changer   User     @relation("StatusChanger", fields: [changedById], references: [id])
   reason    String?
   ipAddress String?
   userAgent String?

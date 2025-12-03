@@ -1,5 +1,4 @@
 // src/app/api/dashboard/route.ts
-
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
@@ -25,6 +24,30 @@ export async function GET(request: NextRequest) {
       parseInt(session.user.id),
       session.user.role
     );
+
+    // 🔧 Получаем информацию о проекте
+    const userProjects = await dashboardService.getUserProjects(
+      parseInt(session.user.id),
+      session.user.role
+    );
+
+    const project = userProjects.find((p) => p.id === parseInt(projectId));
+    if (project) {
+      // Добавляем проект в ответ
+      return NextResponse.json({
+        ...dashboardData,
+        project: {
+          id: project.id,
+          name: project.name,
+          description: project.description || '',
+          owner: {
+            email: project.owner.email,
+            firstName: project.owner.firstName,
+            lastName: project.owner.lastName,
+          },
+        },
+      });
+    }
 
     return NextResponse.json(dashboardData);
   } catch (error: any) {

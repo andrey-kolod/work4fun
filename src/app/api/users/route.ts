@@ -21,27 +21,15 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const search = searchParams.get('search') || '';
     const role = searchParams.get('role') || '';
     const status = searchParams.get('status') || '';
-    const group = searchParams.get('group') || '';
     const page = parseInt(searchParams.get('page') || '1');
-    const pageSize = parseInt(searchParams.get('pageSize') || '10');
+    const pageSize = parseInt(searchParams.get('pageSize') || '50'); // Увеличим для выпадающего списка
 
     // Базовый запрос с фильтрами
-    const where: any = {};
-
-    if (search) {
-      where.OR = [
-        { firstName: { contains: search, mode: 'insensitive' } },
-        { lastName: { contains: search, mode: 'insensitive' } },
-        { email: { contains: search, mode: 'insensitive' } },
-      ];
-    }
-
-    if (role) {
-      where.role = role;
-    }
+    const where: any = {
+      OR: [{ role: 'SUPER_ADMIN' }, { role: 'ADMIN' }],
+    };
 
     if (status === 'active') {
       where.isActive = true;
@@ -49,49 +37,34 @@ export async function GET(request: NextRequest) {
       where.isActive = false;
     }
 
-    if (group) {
-      where.groupId = parseInt(group);
-    }
+    // Получаем пользователей
+    const users = await prisma.user.findMany({
+      where,
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        isActive: true,
+      },
+      orderBy: [{ role: 'asc' }, { lastName: 'asc' }, { firstName: 'asc' }],
+      take: pageSize,
+    });
 
-    // Получаем пользователей с пагинацией
-    const [users, total] = await Promise.all([
-      prisma.user.findMany({
-        where,
-        select: {
-          id: true,
-          email: true,
-          firstName: true,
-          lastName: true,
-          role: true,
-          isActive: true,
-          avatar: true,
-          createdAt: true,
-          updatedAt: true,
-          userGroups: {
-            select: {
-              group: {
-                select: {
-                  id: true,
-                  name: true,
-                },
-              },
-            },
-          },
-        },
-        orderBy: { createdAt: 'desc' },
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-      }),
-      prisma.user.count({ where }),
-    ]);
+    // Формируем полное имя для отображения
+    const usersWithFullName = users.map((user) => ({
+      ...user,
+      name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email,
+    }));
 
     return NextResponse.json({
-      users,
+      users: usersWithFullName,
       pagination: {
         page,
         pageSize,
-        total,
-        totalPages: Math.ceil(total / pageSize),
+        total: users.length,
+        totalPages: 1,
       },
     });
   } catch (error) {

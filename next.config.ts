@@ -1,10 +1,10 @@
+// next.config.js
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   reactCompiler: true,
-  env: {
-    // Здесь можно определить серверные env переменные
-  },
+  productionBrowserSourceMaps: false,
+  serverExternalPackages: ['@prisma/client', 'bcrypt'],
 };
 
 export default nextConfig;

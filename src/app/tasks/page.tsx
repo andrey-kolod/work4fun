@@ -2,127 +2,101 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState, Suspense, useLayoutEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import KanbanBoard from '@/components/tasks/KanbanBoard';
+import { Loading } from '@/components/ui/Loading';
+import { useAppStore } from '@/store/useAppStore';
+import { Button } from '@/components/ui/Button';
+import { SimpleProject } from '@/types';
 
-interface Project {
-  id: number;
-  name: string;
-}
+// Выносим основную логику в отдельный компонент
+function TasksContent() {
+  const searchParams = useSearchParams();
+  const { selectedProject, setSelectedProject } = useAppStore();
+  const [isInitialized, setIsInitialized] = useState(false);
 
-interface Group {
-  id: number;
-  name: string;
-  project?: {
-    id: number;
-    name: string;
-  };
-}
+  const projectIdFromUrl = searchParams.get('projectId');
+  const projectId = projectIdFromUrl ? parseInt(projectIdFromUrl) : selectedProject?.id;
 
-export default function TasksPage() {
-  const [selectedProjectId, setSelectedProjectId] = useState<number>();
-  const [selectedGroupId, setSelectedGroupId] = useState<number>();
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [groups, setGroups] = useState<Group[]>([]);
-  const [loading, setLoading] = useState(true);
-  console.log('📄 TasksPage data:', {
-    projects,
-    groups,
-    selectedProjectId,
-    selectedGroupId,
-  });
-
+  // 🔧 Инициализируем проект из URL если есть
   useEffect(() => {
-    async function fetchData() {
-      try {
-        // Загружаем проекты
-        const projectsRes = await fetch('/api/projects');
-        const projectsData = await projectsRes.json();
-        setProjects(projectsData.projects || []);
+    let mounted = true;
 
-        // Загружаем группы
-        const groupsRes = await fetch('/api/groups');
-        const groupsData = await groupsRes.json();
-        setGroups(groupsData.groups || []);
-      } catch (error) {
-        console.error('Error fetching data:', error);
-      } finally {
-        setLoading(false);
-      }
+    if (projectIdFromUrl && !selectedProject && mounted) {
+      console.log(`📥 Loading project from URL: ${projectIdFromUrl}`);
+      // Создаем временный проект
+      const tempProject: SimpleProject = {
+        id: parseInt(projectIdFromUrl),
+        name: `Проект ${projectIdFromUrl}`,
+        description: '',
+        owner: {
+          email: '',
+          firstName: null,
+          lastName: null,
+        },
+      };
+      setSelectedProject(tempProject);
     }
 
-    fetchData();
-  }, []);
+    // Используем requestAnimationFrame для асинхронного обновления
+    const timer = setTimeout(() => {
+      if (mounted) {
+        setIsInitialized(true);
+      }
+    }, 0);
 
-  // Фильтруем группы по выбранному проекту
-  const filteredGroups = selectedProjectId
-    ? groups.filter((group) => group.project?.id === selectedProjectId)
-    : groups;
+    return () => {
+      mounted = false;
+      clearTimeout(timer);
+    };
+  }, [projectIdFromUrl, selectedProject, setSelectedProject]);
 
-  // Правильное вычисление disabled для select
-  const isGroupsSelectDisabled = Boolean(selectedProjectId && filteredGroups.length === 0);
-
-  if (loading) {
+  if (!isInitialized) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+      <div className="min-h-screen flex items-center justify-center">
+        <Loading size="lg" />
+      </div>
+    );
+  }
+
+  if (!projectId) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center p-8">
+          <div className="text-4xl mb-4">📋</div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Выберите проект</h1>
+          <p className="text-gray-600 mb-6">Для просмотра задач выберите проект в Dashboard</p>
+          <Button
+            onClick={() => (window.location.href = '/dashboard')}
+            variant="primary"
+            className="flex items-center gap-2 mx-auto"
+          >
+            📊 Перейти в Dashboard
+          </Button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold mb-6 text-gray-900">Kanban Доска</h1>
-
-      {/* Фильтры */}
-      <div className="mb-8 p-4 bg-white rounded-lg shadow">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Проект</label>
-            <select
-              className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
-              value={selectedProjectId || ''}
-              onChange={(e) => {
-                const value = e.target.value;
-                setSelectedProjectId(value ? Number(value) : undefined);
-                setSelectedGroupId(undefined); // Сбрасываем выбор группы
-              }}
-            >
-              <option value="">Все проекты</option>
-              {projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Группа</label>
-            <select
-              className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 disabled:opacity-50"
-              value={selectedGroupId || ''}
-              onChange={(e) =>
-                setSelectedGroupId(e.target.value ? Number(e.target.value) : undefined)
-              }
-              disabled={isGroupsSelectDisabled}
-            >
-              <option value="">Все группы</option>
-              {filteredGroups.map((group) => (
-                <option key={group.id} value={group.id}>
-                  {group.name}
-                </option>
-              ))}
-            </select>
-            {selectedProjectId && filteredGroups.length === 0 && (
-              <p className="text-sm text-gray-500 mt-1">Нет групп в выбранном проекте</p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Kanban доска */}
-      <KanbanBoard projectId={selectedProjectId} groupId={selectedGroupId} />
+    <div className="min-h-screen bg-gray-50">
+      <KanbanBoard projectId={projectId} />
     </div>
+  );
+}
+
+// Главный компонент с Suspense
+export default function TasksPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center">
+          <Loading size="lg" />
+        </div>
+      }
+    >
+      <TasksContent />
+    </Suspense>
   );
 }

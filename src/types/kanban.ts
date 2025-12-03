@@ -3,14 +3,21 @@
 import { Task, TaskStatus } from './task';
 
 export interface KanbanColumn {
-  id: string; // Теперь просто string, так как @dnd-kit использует строки
+  id: string;
   title: string;
+  color: string;
+  icon: string;
   tasks: Task[];
 }
 
 export interface KanbanBoardProps {
   projectId?: number;
   groupId?: number;
+}
+
+export interface KanbanBoardData {
+  columns: KanbanColumn[];
+  totalTasks: number;
 }
 
 export interface DragResult {

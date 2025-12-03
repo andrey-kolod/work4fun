@@ -1,65 +1,90 @@
-// directworkflow/middleware.ts
-// Защищает маршруты и API с помощью next-auth и настраивает доступ на основе ролей пользователей.
-
-import { withAuth } from 'next-auth/middleware';
+// src/proxy.ts
 import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { getToken } from 'next-auth/jwt';
 
-export default withAuth(
-  function middleware(request) {
-    const token = request.nextauth?.token;
-    const pathname = request.nextUrl.pathname;
+export default async function proxy(request: NextRequest) {
+  const token = await getToken({
+    req: request,
+    secret: process.env.NEXTAUTH_SECRET,
+  });
 
-    if (!token && (pathname.startsWith('/dashboard') || pathname.startsWith('/admin'))) {
-      return NextResponse.redirect(new URL('/auth/login', request.url));
+  const pathname = request.nextUrl.pathname;
+
+  // === ПУБЛИЧНЫЕ МАРШРУТЫ ===
+  if (
+    pathname === '/' || // 🔧 ДОБАВИЛИ главную страницу
+    pathname.startsWith('/login') || // Страница логина
+    pathname.startsWith('/register') || // Страница регистрации
+    pathname.startsWith('/api/auth') || // API авторизации
+    pathname.startsWith('/_next') || // Системные файлы Next.js
+    pathname.startsWith('/public') || // Публичные файлы
+    pathname.startsWith('/favicon.ico') || // Иконка
+    pathname === '/no-projects' // Страница "нет проектов"
+  ) {
+    // 🔧 ВАЖНО: Главная страница должна быть публичной
+    // чтобы пользователь мог попасть на / и увидеть что-то (например, приветствие)
+    return NextResponse.next();
+  }
+
+  // 🔧 УБИРАЕМ редирект с / на /login - теперь / публичная
+  // if (pathname === '/') {
+  //   if (!token) {
+  //     return NextResponse.redirect(new URL('/login', request.url));
+  //   }
+  //   return NextResponse.redirect(new URL('/project-select', request.url));
+  // }
+
+  // === ПРОЕКТ-SELECT - доступен только авторизованным ===
+  if (pathname === '/project-select' || pathname.startsWith('/project-select/')) {
+    if (!token) {
+      return NextResponse.redirect(new URL('/login', request.url));
     }
+    return NextResponse.next();
+  }
 
-    if (pathname.startsWith('/admin')) {
-      if (token?.role === 'SUPER_ADMIN') {
-        return NextResponse.next();
-      }
+  // === DASHBOARD - доступен только авторизованным ===
+  if (pathname.startsWith('/dashboard')) {
+    if (!token) {
+      return NextResponse.redirect(new URL('/login', request.url));
+    }
+    const selectedProjectId = request.cookies.get('selectedProjectId')?.value;
+    if (!selectedProjectId && pathname === '/dashboard') {
+      console.log('[MIDDLEWARE] No project selected, redirecting to /project-select');
+      return NextResponse.redirect(new URL('/project-select', request.url));
+    }
+    return NextResponse.next();
+  }
 
-      if (token?.role === 'ADMIN') {
-        if (pathname.startsWith('/admin/system')) {
-          return NextResponse.redirect(new URL('/dashboard', request.url));
-        }
-        return NextResponse.next();
-      }
+  // === TASKS - доступен только авторизованным ===
+  if (pathname.startsWith('/tasks')) {
+    if (!token) {
+      return NextResponse.redirect(new URL('/login', request.url));
+    }
+    return NextResponse.next();
+  }
 
+  // === ПРОВЕРКА ТОКЕНА ДЛЯ ВСЕХ ОСТАЛЬНЫХ МАРШРУТОВ ===
+  if (!token) {
+    return NextResponse.redirect(new URL('/login', request.url));
+  }
+
+  // === ADMIN ПРАВА ===
+  if (pathname.startsWith('/admin')) {
+    if (token.role !== 'SUPER_ADMIN' && token.role !== 'ADMIN') {
       return NextResponse.redirect(new URL('/dashboard', request.url));
     }
-
-    if (pathname.startsWith('/api')) {
-      if (!token) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-      }
-
-      if (
-        pathname.startsWith('/api/admin') &&
-        token.role !== 'SUPER_ADMIN' &&
-        token.role !== 'ADMIN'
-      ) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-      }
-    }
-
-    return NextResponse.next();
-  },
-  {
-    callbacks: {
-      authorized: ({ token, req }) => {
-        const pathname = req.nextUrl.pathname;
-
-        const publicRoutes = ['/', '/auth/login', '/auth/register', '/api/auth', '/project-select'];
-
-        if (publicRoutes.some((route) => pathname === route || pathname.startsWith(route))) {
-          return true;
-        }
-
-        return !!token;
-      },
-    },
   }
-);
+
+  // === API ADMIN ПРАВА ===
+  if (pathname.startsWith('/api/admin')) {
+    if (token.role !== 'SUPER_ADMIN' && token.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+  }
+
+  return NextResponse.next();
+}
 
 export const config = {
   matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],

@@ -1,50 +1,8 @@
-// types/task.ts
+// src/types/task.ts
 
 export type TaskStatus = 'TODO' | 'IN_PROGRESS' | 'REVIEW' | 'DONE';
 export type TaskPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
 export type DelegationStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'CANCELLED';
-
-// Base interfaces for relations
-// Обновляем интерфейс User
-export interface User {
-  id: number;
-  email: string;
-  firstName?: string;
-  lastName?: string;
-  middleName?: string;
-  role: string;
-  avatar?: string;
-  isActive: boolean;
-  name?: string;
-}
-
-export interface Project {
-  id: number;
-  name: string;
-  description?: string;
-  ownerId: number;
-  status: string;
-}
-
-export interface Group {
-  id: number;
-  name: string;
-  description?: string;
-  projectId: number;
-}
-
-export interface Comment {
-  id: number;
-  content: string;
-  authorId: number;
-  taskId?: number;
-  parentId?: number;
-  mentions?: any;
-  createdAt: Date;
-  updatedAt: Date;
-  author?: User;
-  replies?: Comment[];
-}
 
 export interface Task {
   id: number;
@@ -120,4 +78,45 @@ export interface TaskUpdateInput {
   estimatedHours?: number;
   actualHours?: number;
   assigneeIds?: number[];
+}
+
+export interface TaskFormData {
+  title: string;
+  description?: string;
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+  status: 'TODO' | 'IN_PROGRESS' | 'REVIEW' | 'DONE';
+  dueDate?: string;
+  projectId?: number;
+  groupId?: number;
+  assigneeIds?: number[];
+}
+
+// Дополнительные типы
+export interface User {
+  id: number;
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  role: string;
+  isActive: boolean;
+}
+
+export interface Project {
+  id: number;
+  name: string;
+  description?: string;
+}
+
+export interface Group {
+  id: number;
+  name: string;
+  description?: string;
+}
+
+export interface Comment {
+  id: number;
+  content: string;
+  authorId: number;
+  createdAt: Date;
+  updatedAt: Date;
 }

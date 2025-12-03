@@ -1,4 +1,5 @@
 // src/app/api/projects/[id]/users/route.ts
+
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
@@ -53,17 +54,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     });
 
     // Логируем действие
-    await audit.create(
-      parseInt(session.user.id),
-      'Project',
-      project.id,
-      {
-        userId: user.id,
-        userName: `${user.firstName} ${user.lastName}`,
-        action: 'USER_ADDED_TO_PROJECT',
-      },
-      request
-    );
+    if (audit?.create) {
+      await audit.create(
+        parseInt(session.user.id),
+        'Project',
+        project.id,
+        {
+          userId: user.id,
+          userName: `${user.firstName} ${user.lastName}`,
+          action: 'USER_ADDED_TO_PROJECT',
+        },
+        request
+      );
+    }
 
     return NextResponse.json({ userProject }, { status: 201 });
   } catch (error) {
@@ -84,9 +87,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Не авторизован' }, { status: 401 });
     }
 
-    const users = await prisma.userProject.findMany({
+    const projectId = parseInt(id);
+
+    // Получаем пользователей проекта через UserProject
+    const userProjects = await prisma.userProject.findMany({
       where: {
-        projectId: parseInt(id),
+        projectId: projectId,
       },
       include: {
         user: {
@@ -101,6 +107,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         },
       },
     });
+
+    // Форматируем ответ для удобства использования
+    const users = userProjects.map((up) => ({
+      user: {
+        id: up.user.id,
+        firstName: up.user.firstName,
+        lastName: up.user.lastName,
+        email: up.user.email,
+        role: up.user.role,
+        isActive: up.user.isActive,
+      },
+    }));
 
     return NextResponse.json({ users });
   } catch (error) {

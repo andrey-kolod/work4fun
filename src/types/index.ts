@@ -1,17 +1,6 @@
-// src/types/index.ts
-export interface User {
-  id: number;
-  email: string;
-  firstName?: string;
-  lastName?: string;
-  role: Role;
-  avatar?: string;
-  groupId?: number;
-  isActive: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-}
+// src/types/index.ts - главный файл экспорта
 
+// Enums
 export enum Role {
   SUPER_ADMIN = 'SUPER_ADMIN',
   ADMIN = 'ADMIN',
@@ -56,3 +45,17 @@ export enum NotificationType {
   USER_ACTIVATED = 'USER_ACTIVATED',
   USER_DEACTIVATED = 'USER_DEACTIVATED',
 }
+
+// Реэкспортируем типы из других файлов (явно, чтобы избежать конфликтов)
+export { type User, type CreateUserData } from './user';
+export { type SimpleProject, type Project } from './project';
+export { type Group } from './group';
+export {
+  type Task,
+  type TaskAssignment,
+  type TaskDelegation,
+  type TaskCreateInput,
+  type TaskUpdateInput,
+  type TaskFormData,
+} from './task';
+export { type TaskStat, type DashboardStats, type DashboardClientProps } from './dashboard';
