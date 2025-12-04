@@ -1,4 +1,5 @@
-// Генератор Prisma Client
+// work4fun/prisma/schema.prisma
+// Генератор Prisma Client - создает TypeScript типы на основе схемы
 generator client {
   provider = "prisma-client-js"
 }
@@ -14,6 +15,12 @@ enum Role {
   SUPER_ADMIN
   ADMIN  
   USER
+}
+
+// Добавляем новый enum для области видимости пользователя в проекте
+enum UserScope {
+  ALL                // Видит весь проект
+  SPECIFIC_GROUPS    // Видит только выбранные группы
 }
 
 enum ProjectStatus {
@@ -66,9 +73,14 @@ model User {
   lastName   String?
   firstName  String?
   middleName String?
+    phone      String?
   role       Role     @default(USER)
   avatar     String?
   isActive   Boolean  @default(true)
+  
+  // ДОБАВЛЯЕМ: ограничение на количество проектов (3 для обычных пользователей)
+  maxProjects Int     @default(3)
+  projectCount Int    @default(0)
 
   // Relations
   userProjects     UserProject[]
@@ -138,13 +150,24 @@ model Group {
   @@map("groups")
 }
 
+// ОБНОВЛЯЕМ: добавляем поля для управления доступом пользователя к проекту
 model UserProject {
-  id        Int     @id @default(autoincrement())
-  userId    Int
-  projectId Int
-  role      Role    @default(USER)
-  user      User    @relation(fields: [userId], references: [id])
-  project   Project @relation(fields: [projectId], references: [id])
+  id            Int       @id @default(autoincrement())
+  userId        Int
+  projectId     Int
+  role          Role      @default(USER)
+  
+  // ДОБАВЛЯЕМ: область видимости пользователя в проекте
+  scope         UserScope @default(ALL)
+  
+  // ДОБАВЛЯЕМ: JSON массив с ID групп, которые видит пользователь
+  visibleGroups Json?     
+  
+  // ДОБАВЛЯЕМ: флаг активности пользователя в проекте
+  isActive      Boolean   @default(true)
+  
+  user          User    @relation(fields: [userId], references: [id])
+  project       Project @relation(fields: [projectId], references: [id])
 
   @@unique([userId, projectId])
   @@map("user_projects")

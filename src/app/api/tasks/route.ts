@@ -1,15 +1,39 @@
-// src/app/api/tasks/route.ts
-
+// work4fun/src/app/api/tasks/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { audit } from '@/lib/audit';
+import { PermissionService } from '@/lib/services/permissionService';
 
-// GET /api/tasks - Получить все задачи
+// Вспомогательная функция для безопасного приведения visibleGroups к массиву строк
+const parseVisibleGroups = (visibleGroups: any): string[] => {
+  if (!visibleGroups) return [];
+
+  try {
+    // Если это уже массив
+    if (Array.isArray(visibleGroups)) {
+      return visibleGroups.map((item: any) => String(item));
+    }
+
+    // Если это JSON строка
+    if (typeof visibleGroups === 'string') {
+      const parsed = JSON.parse(visibleGroups);
+      if (Array.isArray(parsed)) {
+        return parsed.map((item: any) => String(item));
+      }
+    }
+
+    return [];
+  } catch (error) {
+    console.error('Error parsing visibleGroups:', error);
+    return [];
+  }
+};
+
 export async function GET(request: NextRequest) {
   try {
-    console.log('[API TASKS] Получение задач');
+    console.log('[API TASKS] Получение задач с фильтрацией по правам');
     const session = await getServerSession(authOptions);
 
     if (!session) {
@@ -21,53 +45,161 @@ export async function GET(request: NextRequest) {
     const projectId = searchParams.get('projectId');
     const groupId = searchParams.get('groupId');
 
-    console.log('[API TASKS] Параметры:', { projectId, groupId, userId: session.user.id });
+    console.log('[API TASKS] Параметры:', {
+      projectId,
+      groupId,
+      userId: session.user.id,
+      role: session.user.role,
+    });
 
-    // Базовые условия запроса
-    const where: any = {};
+    const userId = parseInt(session.user.id);
+    const userRole = session.user.role;
 
-    if (projectId) {
-      const projectIdNum = parseInt(projectId);
-      if (isNaN(projectIdNum)) {
-        return NextResponse.json({ error: 'Invalid projectId' }, { status: 400 });
+    // 1. SUPER_ADMIN видит все задачи всех проектов без ограничений
+    if (userRole === 'SUPER_ADMIN') {
+      const where: any = {};
+
+      if (projectId) {
+        const projectIdNum = parseInt(projectId);
+        if (isNaN(projectIdNum)) {
+          return NextResponse.json({ error: 'Invalid projectId' }, { status: 400 });
+        }
+        where.projectId = projectIdNum;
       }
-      where.projectId = projectIdNum;
+
+      if (groupId) {
+        const groupIdNum = parseInt(groupId);
+        if (isNaN(groupIdNum)) {
+          return NextResponse.json({ error: 'Invalid groupId' }, { status: 400 });
+        }
+        where.groupId = groupIdNum;
+      }
+
+      const tasks = await prisma.task.findMany({
+        where,
+        include: {
+          project: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          group: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          creator: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
+          assignments: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  email: true,
+                },
+              },
+            },
+          },
+        },
+        orderBy: [{ createdAt: 'desc' }, { status: 'asc' }, { dueDate: 'asc' }],
+      });
+
+      console.log(`[API TASKS SUPER_ADMIN] Найдено задач: ${tasks.length}`);
+      return NextResponse.json({ tasks });
     }
 
+    // 2. Обычные пользователи и ADMIN - нужна проверка прав
+    if (!projectId) {
+      return NextResponse.json(
+        { error: 'projectId обязателен для пользователей' },
+        { status: 400 }
+      );
+    }
+
+    const projectIdNum = parseInt(projectId);
+    if (isNaN(projectIdNum)) {
+      return NextResponse.json({ error: 'Invalid projectId' }, { status: 400 });
+    }
+
+    // Проверяем доступ пользователя к проекту
+    const canViewProject = await PermissionService.canViewProject(userId, projectIdNum);
+    if (!canViewProject) {
+      console.log('[API TASKS] Нет доступа к проекту');
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    }
+
+    // Получаем информацию о доступе пользователя к проекту
+    const userAccess = await prisma.userProject.findFirst({
+      where: {
+        userId: userId,
+        projectId: projectIdNum,
+      },
+    });
+
+    if (!userAccess) {
+      return NextResponse.json({ error: 'Access information not found' }, { status: 403 });
+    }
+
+    // Строим условия WHERE в зависимости от scope пользователя
+    const where: any = { projectId: projectIdNum };
+
+    // Если запрошены задачи конкретной группы
     if (groupId) {
       const groupIdNum = parseInt(groupId);
       if (isNaN(groupIdNum)) {
         return NextResponse.json({ error: 'Invalid groupId' }, { status: 400 });
       }
+
+      // Проверяем доступ к конкретной группе
+      if (userAccess.scope === 'SPECIFIC_GROUPS') {
+        const visibleGroups = parseVisibleGroups(userAccess.visibleGroups);
+        const canViewGroup = visibleGroups.includes(groupIdNum.toString());
+        if (!canViewGroup) {
+          console.log('[API TASKS] Нет доступа к группе:', groupId);
+          return NextResponse.json({ error: 'Access denied to group' }, { status: 403 });
+        }
+      }
+
       where.groupId = groupIdNum;
     }
+    // Если запрошены все задачи проекта
+    else {
+      // Для пользователей с ограниченным доступом фильтруем по visibleGroups
+      if (userAccess.scope === 'SPECIFIC_GROUPS') {
+        const visibleGroups = parseVisibleGroups(userAccess.visibleGroups);
 
-    // Проверяем права доступа
-    const userId = parseInt(session.user.id);
-    const userRole = session.user.role;
+        if (visibleGroups.length > 0) {
+          const visibleGroupIds = visibleGroups
+            .map((id) => parseInt(id))
+            .filter((id) => !isNaN(id));
 
-    if (userRole !== 'SUPER_ADMIN') {
-      // Получаем проекты пользователя
-      const userProjects = await prisma.userProject.findMany({
-        where: { userId },
-        select: { projectId: true },
-      });
-
-      const accessibleProjectIds = userProjects.map((up) => up.projectId);
-
-      if (projectId && !accessibleProjectIds.includes(parseInt(projectId))) {
-        console.log('[API TASKS] Нет доступа к проекту');
-        return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+          if (visibleGroupIds.length > 0) {
+            where.groupId = { in: visibleGroupIds };
+          } else {
+            console.log('[API TASKS] Нет доступных групп у пользователя');
+            return NextResponse.json({ tasks: [] });
+          }
+        } else {
+          console.log('[API TASKS] Нет доступных групп у пользователя');
+          return NextResponse.json({ tasks: [] });
+        }
       }
-
-      if (!projectId) {
-        where.projectId = { in: accessibleProjectIds };
-      }
+      // Для пользователей с scope='ALL' фильтрации нет - видят все задачи проекта
     }
 
-    console.log('[API TASKS] WHERE условия:', where);
+    console.log('[API TASKS] WHERE условия после фильтрации:', where);
 
-    // Получаем задачи с сортировкой (новые сверху)
+    // Получаем задачи с учетом фильтрации
     const tasks = await prisma.task.findMany({
       where,
       include: {
@@ -104,10 +236,10 @@ export async function GET(request: NextRequest) {
           },
         },
       },
-      orderBy: [{ createdAt: 'desc' }, { status: 'asc' }, { dueDate: 'asc' }], // Новые задачи сверху
+      orderBy: [{ createdAt: 'desc' }, { status: 'asc' }, { dueDate: 'asc' }],
     });
 
-    console.log(`[API TASKS] Найдено задач: ${tasks.length}`);
+    console.log(`[API TASKS] Найдено задач после фильтрации: ${tasks.length}`);
     return NextResponse.json({ tasks });
   } catch (error) {
     console.error('[API TASKS] Ошибка:', error);
@@ -142,18 +274,12 @@ export async function POST(request: NextRequest) {
 
     const projectId = parseInt(data.projectId);
 
-    // Проверяем доступ к проекту
+    // Проверка прав с использованием PermissionService
     if (session.user.role !== 'SUPER_ADMIN') {
-      const userProject = await prisma.userProject.findFirst({
-        where: {
-          userId: userId,
-          projectId: projectId,
-        },
-      });
-
-      if (!userProject) {
-        console.log('[API TASKS POST] Нет доступа к проекту');
-        return NextResponse.json({ error: 'Нет доступа к проекту' }, { status: 403 });
+      const canEdit = await PermissionService.canEditProject(userId, projectId);
+      if (!canEdit) {
+        console.log('[API TASKS POST] Нет прав на создание задачи в проекте');
+        return NextResponse.json({ error: 'Нет прав на создание задачи' }, { status: 403 });
       }
     }
 
@@ -164,6 +290,15 @@ export async function POST(request: NextRequest) {
 
     if (!project) {
       return NextResponse.json({ error: 'Проект не найден' }, { status: 404 });
+    }
+
+    // Если указана группа, проверяем доступ к ней
+    if (data.groupId && session.user.role !== 'SUPER_ADMIN') {
+      const canViewGroup = await PermissionService.canViewGroupTasks(userId, data.groupId);
+      if (!canViewGroup) {
+        console.log('[API TASKS POST] Нет доступа к группе:', data.groupId);
+        return NextResponse.json({ error: 'Нет доступа к указанной группе' }, { status: 403 });
+      }
     }
 
     // Создаем задачу
@@ -206,49 +341,55 @@ export async function POST(request: NextRequest) {
 
     console.log('[API TASKS POST] Задача создана:', task.id);
 
-    // Если есть назначенные пользователи (поддержка обоих полей: assignedTo и assigneeIds)
+    // Если есть назначенные пользователи
     const assigneeIds = data.assigneeIds || data.assignedTo || [];
 
     if (Array.isArray(assigneeIds) && assigneeIds.length > 0) {
       console.log('[API TASKS POST] Назначение пользователей:', assigneeIds);
 
-      // Проверяем, что все пользователи существуют и имеют доступ к проекту
-      const validUsers = await prisma.userProject.findMany({
-        where: {
-          userId: { in: assigneeIds },
-          projectId: projectId,
-        },
-        select: { userId: true },
-      });
+      // Преобразуем все ID в числа
+      const numericAssigneeIds = assigneeIds.map((id) => parseInt(id)).filter((id) => !isNaN(id));
 
-      const validUserIds = validUsers.map((up) => up.userId);
+      if (numericAssigneeIds.length > 0) {
+        // Проверяем, что все пользователи существуют и имеют доступ к проекту
+        const validUsers = await prisma.userProject.findMany({
+          where: {
+            userId: { in: numericAssigneeIds },
+            projectId: projectId,
+            isActive: true,
+          },
+          select: { userId: true },
+        });
 
-      // Создаем назначения только для валидных пользователей
-      if (validUserIds.length > 0) {
-        const assignments = await Promise.all(
-          validUserIds.map((assigneeId: number) =>
-            prisma.taskAssignment.create({
-              data: {
-                taskId: task.id,
-                userId: assigneeId,
-                assignedBy: userId,
-              },
-              include: {
-                user: {
-                  select: {
-                    id: true,
-                    firstName: true,
-                    lastName: true,
-                    email: true,
+        const validUserIds = validUsers.map((up) => up.userId);
+
+        // Создаем назначения только для валидных пользователей
+        if (validUserIds.length > 0) {
+          const assignments = await Promise.all(
+            validUserIds.map((assigneeId: number) =>
+              prisma.taskAssignment.create({
+                data: {
+                  taskId: task.id,
+                  userId: assigneeId,
+                  assignedBy: userId,
+                },
+                include: {
+                  user: {
+                    select: {
+                      id: true,
+                      firstName: true,
+                      lastName: true,
+                      email: true,
+                    },
                   },
                 },
-              },
-            })
-          )
-        );
-        console.log('[API TASKS POST] Назначения созданы:', assignments.length);
-      } else {
-        console.warn('[API TASKS POST] Нет валидных пользователей для назначения');
+              })
+            )
+          );
+          console.log('[API TASKS POST] Назначения созданы:', assignments.length);
+        } else {
+          console.warn('[API TASKS POST] Нет валидных пользователей для назначения');
+        }
       }
     }
 
@@ -291,7 +432,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Логируем действие (если есть модуль audit)
+    // Логируем действие
     try {
       if (audit?.create) {
         await audit.create(userId, 'Task', task.id, taskWithAssignments, request);

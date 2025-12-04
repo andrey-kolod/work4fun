@@ -1,8 +1,9 @@
-// src/app/api/projects/route.ts
+// work4fun/src/app/api/projects/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { PermissionService } from '@/lib/services/permissionService';
 
 export async function GET(request: NextRequest) {
   try {
@@ -81,7 +82,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to fetch projects' }, { status: 500 });
   }
 }
-// Добавьте этот код в конец src/app/api/projects/route.ts (перед закрывающей фигурной скобкой)
 
 export async function POST(request: NextRequest) {
   try {
@@ -97,50 +97,78 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, description, ownerId } = body;
+    const { name, description, startDate, endDate } = body;
 
     // Валидация
-    if (!name || !ownerId) {
-      return NextResponse.json({ error: 'Project name and owner are required' }, { status: 400 });
+    if (!name) {
+      return NextResponse.json({ error: 'Название проекта обязательно' }, { status: 400 });
     }
 
-    // Проверяем существование владельца
-    const owner = await prisma.user.findUnique({
-      where: { id: ownerId },
-    });
+    const userId = parseInt(session.user.id);
 
-    if (!owner) {
-      return NextResponse.json({ error: 'Owner not found' }, { status: 404 });
+    // Проверяем, может ли пользователь создать проект
+    const canCreate = await PermissionService.canCreateProject(userId);
+    if (!canCreate) {
+      // Получаем количество проектов пользователя для информативного сообщения
+      const ownedProjectsCount = await PermissionService.getOwnedProjectsCount(userId);
+      return NextResponse.json(
+        {
+          error: `Превышен лимит проектов. Вы можете создать максимум 3 проекта. У вас уже создано: ${ownedProjectsCount}`,
+        },
+        { status: 400 }
+      );
     }
 
-    // Создаем проект
+    // Создаем проект с текущим пользователем как владельцем
     const project = await prisma.project.create({
       data: {
         name,
         description,
-        ownerId,
+        ownerId: userId,
         status: 'ACTIVE',
+        startDate: startDate ? new Date(startDate) : null,
+        endDate: endDate ? new Date(endDate) : null,
+      },
+      include: {
+        owner: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
       },
     });
 
-    // Добавляем владельца в проект как админа
+    // Добавляем создателя как ADMIN с полным доступом
     await prisma.userProject.create({
       data: {
-        userId: ownerId,
+        userId: userId,
         projectId: project.id,
         role: session.user.role === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : 'ADMIN',
+        scope: 'ALL',
+        isActive: true,
       },
     });
+
+    // Увеличиваем счетчик проектов
+    await PermissionService.incrementProjectCount(userId);
 
     return NextResponse.json(
       {
         project,
-        message: 'Project created successfully',
+        message: 'Проект успешно создан',
       },
       { status: 201 }
     );
   } catch (error) {
     console.error('Error creating project:', error);
-    return NextResponse.json({ error: 'Failed to create project' }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: error instanceof Error ? error.message : 'Ошибка при создании проекта',
+      },
+      { status: 500 }
+    );
   }
 }

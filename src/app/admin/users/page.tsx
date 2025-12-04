@@ -13,7 +13,8 @@ interface User {
   role: 'SUPER_ADMIN' | 'ADMIN' | 'USER';
   isActive: boolean;
   createdAt: string;
-  userGroups: {
+  // ДОБАВИЛИ проверку на undefined
+  userGroups?: {
     group: {
       id: number;
       name: string;
@@ -68,7 +69,12 @@ export default function UsersPage() {
       }
 
       const data = await response.json();
-      setUsers(data.users || []);
+      // ДОБАВИЛИ дефолтное значение для userGroups
+      const usersWithDefaultGroups = (data.users || []).map((user: any) => ({
+        ...user,
+        userGroups: user.userGroups || [], // Если userGroups нет, используем пустой массив
+      }));
+      setUsers(usersWithDefaultGroups);
       setPagination((prev) => ({ ...prev, total: data.pagination.total }));
     } catch (error) {
       console.error('Error fetching users:', error);
@@ -172,9 +178,15 @@ export default function UsersPage() {
     }
   };
 
-  // Получение групп пользователя
+  // Получение групп пользователя - ИСПРАВЛЕНА ОШИБКА
   const getUserGroups = (user: User) => {
-    return user.userGroups.map((ug) => ug.group.name).join(', ') || '—';
+    // ЗАЩИТА ОТ undefined
+    if (!user.userGroups || !Array.isArray(user.userGroups)) {
+      return '—';
+    }
+
+    const groupNames = user.userGroups.map((ug) => ug.group.name);
+    return groupNames.length > 0 ? groupNames.join(', ') : '—';
   };
 
   return (

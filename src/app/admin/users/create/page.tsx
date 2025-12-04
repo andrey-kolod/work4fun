@@ -1,195 +1,108 @@
 // src/app/admin/users/create/page.tsx
-
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { UserForm } from '@/components/forms/UserForm';
+import { UserFormDataWithGroups } from '@/schemas/user';
 
-// Локальные интерфейсы
-interface UserCreateData {
-  email: string;
-  password: string;
-  firstName: string;
-  lastName: string;
-  role: 'SUPER_ADMIN' | 'ADMIN' | 'USER';
-}
-
-// Локальный API клиент
-class UsersAPI {
-  private baseURL = '/api/users';
-
-  async createUser(userData: UserCreateData): Promise<{ user: any }> {
-    const response = await fetch(this.baseURL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(userData),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Ошибка при создании пользователя');
-    }
-
-    return response.json();
-  }
-}
-
-const usersAPI = new UsersAPI();
-
-// Компонент формы
-function UserForm({
-  onSubmit,
-  loading = false,
-}: {
-  onSubmit: (data: UserCreateData) => void;
-  loading?: boolean;
-}) {
-  const [formData, setFormData] = useState<UserCreateData>({
-    email: '',
-    password: '',
-    firstName: '',
-    lastName: '',
-    role: 'USER',
-  });
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSubmit(formData);
-  };
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
-
-  return (
-    <div className="max-w-2xl mx-auto p-6 bg-white rounded-lg shadow-md">
-      <h2 className="text-2xl font-bold mb-6 text-gray-800">Создание нового пользователя</h2>
-
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div>
-          <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-            Email адрес *
-          </label>
-          <input
-            type="email"
-            id="email"
-            name="email"
-            value={formData.email}
-            onChange={handleChange}
-            required
-            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            placeholder="user@example.com"
-          />
-        </div>
-
-        <div>
-          <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-            Пароль *
-          </label>
-          <input
-            type="password"
-            id="password"
-            name="password"
-            value={formData.password}
-            onChange={handleChange}
-            required
-            minLength={6}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            placeholder="Минимум 6 символов"
-          />
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1">
-              Имя *
-            </label>
-            <input
-              type="text"
-              id="firstName"
-              name="firstName"
-              value={formData.firstName}
-              onChange={handleChange}
-              required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Иван"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1">
-              Фамилия *
-            </label>
-            <input
-              type="text"
-              id="lastName"
-              name="lastName"
-              value={formData.lastName}
-              onChange={handleChange}
-              required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Иванов"
-            />
-          </div>
-        </div>
-
-        <div>
-          <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-1">
-            Роль пользователя *
-          </label>
-          <select
-            id="role"
-            name="role"
-            value={formData.role}
-            onChange={handleChange}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          >
-            <option value="USER">Обычный пользователь</option>
-            <option value="ADMIN">Администратор</option>
-            <option value="SUPER_ADMIN">Супер-администратор</option>
-          </select>
-        </div>
-
-        <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
-          <button
-            type="button"
-            onClick={() => window.history.back()}
-            className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500"
-          >
-            Отмена
-          </button>
-          <button
-            type="submit"
-            disabled={loading}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? 'Создание...' : 'Создать пользователя'}
-          </button>
-        </div>
-      </form>
-    </div>
-  );
-}
-
-// Основной компонент страницы
 export default function CreateUserPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [currentProject, setCurrentProject] = useState<{ id: string; name: string } | null>(null);
 
-  const handleSubmit = async (data: UserCreateData) => {
+  // Получаем текущий проект админа
+  useEffect(() => {
+    fetchCurrentProject();
+  }, []);
+
+  const fetchCurrentProject = async () => {
+    try {
+      // Получаем текущий выбранный проект админа
+      const storedProject = localStorage.getItem('currentProject');
+
+      if (storedProject) {
+        const project = JSON.parse(storedProject);
+        setCurrentProject({
+          id: project.id.toString(),
+          name: project.name,
+        });
+      } else {
+        // Если нет в localStorage, получаем первый доступный проект
+        const response = await fetch('/api/projects/select');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.projects && data.projects.length > 0) {
+            const project = data.projects[0];
+            setCurrentProject({
+              id: project.id.toString(),
+              name: project.name,
+            });
+            localStorage.setItem('currentProject', JSON.stringify(project));
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching current project:', error);
+    }
+  };
+
+  const handleSubmit = async (data: UserFormDataWithGroups) => {
+    console.log('=== HANDLE SUBMIT ВЫЗВАН ===');
+    console.log('Данные из формы:', data);
+    console.log('Текущий проект:', currentProject);
+
     try {
       setLoading(true);
       setError(null);
 
-      await usersAPI.createUser(data);
+      if (!currentProject) {
+        throw new Error('Не удалось определить текущий проект');
+      }
+
+      // Подготовка данных для API - ПРАВИЛЬНЫЙ ФОРМАТ
+      const userData = {
+        email: data.email,
+        password: data.password,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        middleName: data.middleName || undefined,
+        phone: data.phone || undefined,
+        avatar: data.avatar || undefined,
+        role: data.role,
+        projectId: parseInt(currentProject.id),
+        scope: data.scope,
+        visibleGroups: data.visibleGroups?.map((id) => parseInt(id)) || [],
+        isActive: data.isActive,
+      };
+
+      console.log('Данные для отправки в API:', userData);
+
+      const response = await fetch('/api/users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(userData),
+      });
+
+      console.log('Ответ сервера:', response.status, response.statusText);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.log('Ошибка сервера:', errorData);
+        throw new Error(errorData.error || 'Ошибка при создании пользователя');
+      }
+
+      const result = await response.json();
+      console.log('Успешный ответ от сервера:', result);
+
+      alert('Пользователь успешно создан и добавлен в проект!');
+
+      // Возвращаемся на страницу пользователей
       router.push('/admin/users');
+      router.refresh();
     } catch (error) {
       console.error('Error creating user:', error);
       setError((error as Error).message || 'Произошла неизвестная ошибка');
@@ -212,6 +125,7 @@ export default function CreateUserPage() {
           <h1 className="text-3xl font-bold text-gray-900">Создание пользователя</h1>
           <p className="mt-2 text-sm text-gray-600">
             Заполните форму ниже чтобы создать нового пользователя в системе
+            {currentProject && ` (будет добавлен в проект: ${currentProject.name})`}
           </p>
         </div>
 
@@ -220,10 +134,46 @@ export default function CreateUserPage() {
             <div className="text-red-700">
               <strong>Ошибка:</strong> {error}
             </div>
+            <button
+              onClick={() => setError(null)}
+              className="mt-2 text-sm text-red-600 hover:text-red-800"
+            >
+              Скрыть
+            </button>
           </div>
         )}
 
-        <UserForm onSubmit={handleSubmit} loading={loading} />
+        {!currentProject ? (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-md p-6">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path
+                    fillRule="evenodd"
+                    d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-yellow-800">Не выбран проект</h3>
+                <div className="mt-2 text-sm text-yellow-700">
+                  <p>
+                    Для создания пользователя необходимо сначала выбрать проект. Перейдите в нужный
+                    проект и создавайте пользователя оттуда.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <UserForm
+            onSubmit={handleSubmit}
+            loading={loading}
+            currentProjectId={currentProject.id}
+            currentProjectName={currentProject.name}
+          />
+        )}
       </div>
     </div>
   );

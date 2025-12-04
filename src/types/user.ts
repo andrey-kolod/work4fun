@@ -1,17 +1,19 @@
-// src/types/user.ts
+// work4fun/src/types/user.ts
 export interface User {
   id: number;
   email: string;
   firstName?: string;
   lastName?: string;
   middleName?: string;
-  role: string;
+  phone?: string;
   avatar?: string;
+  role: 'SUPER_ADMIN' | 'ADMIN' | 'USER';
   isActive: boolean;
-  name?: string;
-  groupId?: number;
+  maxProjects?: number;
+  projectCount?: number;
   createdAt?: Date;
   updatedAt?: Date;
+  deletedAt?: Date | null;
 }
 
 export interface CreateUserData {
@@ -21,4 +23,19 @@ export interface CreateUserData {
   password: string;
   role: 'SUPER_ADMIN' | 'ADMIN' | 'USER';
   groupId?: number;
+}
+
+// Дополнительный интерфейс для формы пользователя
+export interface UserFormValues {
+  firstName: string;
+  lastName: string;
+  middleName?: string;
+  email: string;
+  password?: string;
+  phone?: string;
+  avatar?: string;
+  role: 'USER' | 'ADMIN';
+  scope: 'ALL' | 'SPECIFIC_GROUPS';
+  visibleGroups: string[];
+  isActive: boolean;
 }
