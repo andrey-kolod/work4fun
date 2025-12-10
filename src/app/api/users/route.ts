@@ -197,7 +197,7 @@ export async function POST(request: NextRequest) {
     console.log('✅ Проект найден:', project.name);
 
     // Проверяем существование пользователя
-    let existingUser = await prisma.user.findUnique({
+    const existingUser = await prisma.user.findUnique({
       where: { email },
     });
 
