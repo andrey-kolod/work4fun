@@ -52,9 +52,9 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
 
   // 🔧 Определяем дополнительные отступы для разных страниц
   const getTopPadding = () => {
-    if (pathname === '/') return 'pt-12 md:pt-20'; // Больший отступ для главной
-    if (pathname === '/login' || pathname === '/register') return 'pt-10 md:pt-16'; // Средний отступ для логина/регистрации
-    return 'pt-6'; // Обычный отступ для остальных страниц
+    if (pathname === '/') return ''; // Убираем padding для главной
+    if (pathname === '/login' || pathname === '/register') return 'pt-10 md:pt-16';
+    return 'pt-6';
   };
 
   if (!mounted) {
@@ -66,7 +66,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
       {showHeader && <Header />}
       {showSidebar && <Sidebar />}
       {loading && <PageLoader />}
-      <main className={`min-h-screen ${showSidebar ? 'lg:pl-64' : ''} ${getTopPadding()}`}>
+      <main className={`${showSidebar ? 'lg:pl-64' : ''} ${getTopPadding()}`}>
         <ToastProvider>{children}</ToastProvider>
       </main>
     </>

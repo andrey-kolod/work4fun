@@ -3,7 +3,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Базовые стили для body */
+/* Сброс стилей для body */
 body {
   margin: 0;
   padding: 0;
@@ -11,7 +11,7 @@ body {
     system-ui,
     -apple-system,
     sans-serif;
-  background-color: #f9fafb;
+  /* Убрали background-color: #f9fafb; */
 }
 
 /* Kanban Board Styles */

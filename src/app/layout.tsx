@@ -19,7 +19,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ru">
-      <body className={`${inter.className} bg-gray-50`}>
+      <body className={`${inter.className} bg-transparent`}>
+        {' '}
+        {/* Изменено на bg-transparent */}
         <AuthProvider>
           <ClientLayout>{children}</ClientLayout>
         </AuthProvider>
