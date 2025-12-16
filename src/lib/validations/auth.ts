@@ -109,11 +109,9 @@ export const registerSchema = z
     confirmPassword: z.string().min(1, 'Подтвердите пароль'),
 
     // agreeToTerms: обязательно true (refine проверяет).
-    agreeToTerms: z
-      .boolean()
-      .refine((val) => val === true, {
-        message: 'Необходимо согласиться с пользовательским соглашением',
-      }),
+    agreeToTerms: z.boolean().refine((val) => val === true, {
+      message: 'Необходимо согласиться с пользовательским соглашением',
+    }),
 
     // agreeToPrivacy: то же.
     agreeToPrivacy: z.boolean().refine((val) => val === true, {

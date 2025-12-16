@@ -1,6 +1,6 @@
 // ============================================================================
-// ФАЙЛ: src/middleware.ts (переименовать из proxy.ts)
-// НАЗНАЧЕНИЕ: Серверная защита маршрутов и редиректы (middleware в Next.js)
+// ФАЙЛ: src/middleware.ts (обязательно это имя — Next.js ищет только middleware.ts)
+// НАЗНАЧЕНИЕ: Серверная защита маршрутов и умные редиректы
 // ----------------------------------------------------------------------------
 // Middleware — это "промежуточный слой" на сервере: проверяет каждый запрос.
 // Почему нужен (как новичку):
@@ -30,19 +30,30 @@ export async function middleware(request: NextRequest) {
     );
   }
 
+  // === ГЛАВНАЯ СТРАНИЦА / — особая логика ===
+  if (pathname === '/') {
+    if (token) {
+      // Если пользователь уже авторизован — не показываем главную страницу
+      // Сразу отправляем его в приложение
+      console.log('✅ Авторизован на главной странице → редирект на /project-select');
+      return NextResponse.redirect(new URL('/project-select', request.url));
+    }
+    // Если НЕ авторизован — показываем главную страницу (лендинг)
+    return NextResponse.next();
+  }
+
   // === ПУБЛИЧНЫЕ МАРШРУТЫ (доступны всем) ===
   if (
-    pathname === '/' || // Главная страница (публичная по твоему коду)
     pathname.startsWith('/login') || // Страница входа
     pathname.startsWith('/register') || // Регистрация (если добавишь)
-    pathname.startsWith('/password/reset') || // Восстановление пароля (по PRD)
+    pathname.startsWith('/password/reset') || // Восстановление пароля
     pathname.startsWith('/api/auth') || // API NextAuth
     pathname.startsWith('/_next') || // Статические файлы Next.js
     pathname.startsWith('/public') || // Публичные файлы
     pathname.startsWith('/favicon.ico') || // Иконка
     pathname === '/no-projects' // Страница "нет проектов"
   ) {
-    // Если авторизован и на /login — редирект на выбор проекта
+    // Если авторизован и пытается зайти на /login — кидаем в приложение
     if (token && pathname.startsWith('/login')) {
       console.log('✅ Уже авторизован на /login — редирект на /project-select');
       return NextResponse.redirect(new URL('/project-select', request.url));
@@ -65,10 +76,9 @@ export async function middleware(request: NextRequest) {
       console.log('❌ Нет токена в защищённой зоне — редирект на /login');
       return NextResponse.redirect(new URL('/login', request.url));
     }
-    // Проверяем выбранный проект (по куки, как в твоём коде)
+    // Проверяем, выбран ли проект (по куки)
     const selectedProjectId = request.cookies.get('selectedProjectId')?.value;
     if (!selectedProjectId && pathname === '/dashboard') {
-      // Или /tasks если нужно
       console.log('[MIDDLEWARE] Нет выбранного проекта — редирект на /project-select');
       return NextResponse.redirect(new URL('/project-select', request.url));
     }
@@ -84,7 +94,6 @@ export async function middleware(request: NextRequest) {
   // === ЗАЩИТА АДМИНКИ ===
   if (pathname.startsWith('/admin')) {
     if (token.role !== 'SUPER_ADMIN' && token.role !== 'PROJECT_LEAD') {
-      // По твоему enum Role (PROJECT_LEAD — админ проекта?)
       console.log(`❌ Недостаточно прав для /admin (роль: ${token.role})`);
       return NextResponse.redirect(new URL('/dashboard', request.url));
     }
