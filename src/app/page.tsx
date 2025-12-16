@@ -5,19 +5,9 @@
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import Link from 'next/link';
-import { useEffect } from 'react';
-import { CheckCircle, Users, BarChart, Bell, Shield, Zap, Sparkles } from 'lucide-react';
+import { CheckCircle, Users, BarChart, Bell, Shield, Zap } from 'lucide-react';
 
 export default function Home() {
-  useEffect(() => {
-    document.body.className = document.body.className
-      .split(' ')
-      .filter((cls) => !cls.includes('bg-'))
-      .join(' ');
-
-    document.body.classList.add('bg-transparent', 'antialiased');
-  }, []);
-
   const features = [
     {
       icon: <CheckCircle className="w-6 h-6 md:w-8 md:h-8" />,
@@ -159,14 +149,16 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="container mx-auto px-4 py-5 md:py-8 text-center">
-        <div className="flex flex-col items-center">
-          <p className="text-gray-500 text-xs md:text-sm mb-1">Work4Fun © 2025</p>
-          <p className="text-gray-500 text-xs md:text-sm mb-2 md:mb-4">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-center gap-1 md:gap-2">
+          <p className="text-gray-500 text-xs md:text-sm">Work4Fun © 2025</p>
+          <span className="hidden md:inline mx-1">•</span>
+          <p className="text-gray-500 text-xs md:text-sm mb-2 md:mb-0">
             Современное решение для управления проектами
           </p>
         </div>
 
-        <div className="text-xs text-gray-400">
+        {/* Ссылки в футере */}
+        <div className="text-xs text-gray-400 mt-2 md:mt-4">
           <div className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1">
             <Link href="/privacy" className="hover:text-gray-600 transition-colors py-0.5 sm:py-0">
               Политика конфиденциальности

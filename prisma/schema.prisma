@@ -1,330 +1,115 @@
-// work4fun/prisma/schema.prisma
-// Генератор Prisma Client - создает TypeScript типы на основе схемы
+// ============================================================================
+// ФАЙЛ: /prisma/schema.prisma
+// НАЗНАЧЕНИЕ: Схема базы данных (Data Schema)
+// ----------------------------------------------------------------------------
+// Этот файл определяет структуру базы данных:
+// 1. Какие таблицы будут в базе
+// 2. Какие поля в каждой таблице
+// 3. Как таблицы связаны между собой
+// 
+// Prisma использует этот файл для:
+// - Создания миграций (изменений в БД)
+// - Генерации TypeScript типов
+// - Создания клиента для работы с БД
+// ============================================================================
+
 generator client {
   provider = "prisma-client-js"
 }
 
-// Настройки подключения к базе данных
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-// === ENUMS ===
 enum Role {
   SUPER_ADMIN
-  ADMIN  
-  USER
+  PROJECT_LEAD
+  PROJECT_MEMBER
 }
 
-// Добавляем новый enum для области видимости пользователя в проекте
-enum UserScope {
-  ALL                // Видит весь проект
-  SPECIFIC_GROUPS    // Видит только выбранные группы
-}
-
-enum ProjectStatus {
-  ACTIVE
-  COMPLETED
-  ARCHIVED
-}
-
-enum TaskStatus {
-  TODO
-  IN_PROGRESS
-  REVIEW
-  DONE
-}
-
-enum Priority {
-  LOW
-  MEDIUM
-  HIGH
-  URGENT
-}
-
-enum DelegationStatus {
-  PENDING
-  ACCEPTED
-  REJECTED
-  CANCELLED
-}
-
-enum NotificationType {
-  TASK_ASSIGNED
-  TASK_DELEGATED
-  TASK_STATUS_CHANGED
-  TASK_COMPLETED
-  NEW_COMMENT
-  MENTIONED
-  DEADLINE_SOON
-  DEADLINE_PASSED
-  USER_ACTIVATED
-  USER_DEACTIVATED
-  PROJECT_CREATED
-  GROUP_CREATED
-}
-
-// === MODELS ===
 model User {
-  id         Int      @id @default(autoincrement())
-  email      String   @unique
-  password   String
-  lastName   String?
-  firstName  String?
-  middleName String?
-    phone      String?
-  role       Role     @default(USER)
-  avatar     String?
-  isActive   Boolean  @default(true)
-  
-  // ДОБАВЛЯЕМ: ограничение на количество проектов (3 для обычных пользователей)
-  maxProjects Int     @default(3)
-  projectCount Int    @default(0)
+  id            String    @id @default(cuid())
+  email         String    @unique @db.VarChar(255)
+  firstName     String    @db.VarChar(50)
+  lastName      String    @db.VarChar(50)
+  middleName    String?   @db.VarChar(50)
+  passwordHash  String?
+  emailVerified Boolean   @default(false)
+  phone         String?   @db.VarChar(20)
+  role          Role      @default(PROJECT_MEMBER)
+  avatar        String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
 
-  // Relations
-  userProjects     UserProject[]
-  userGroups       UserGroup[]
-  ownedProjects    Project[]         @relation("ProjectOwner")
-  createdTasks     Task[]            @relation("CreatedTasks")
-  assignedTasks    TaskAssignment[]
-  comments         Comment[]
-  notifications    Notification[]
-  activityLogs     ActivityLog[]
-  
-  // Delegation relations
-  delegationsSent     TaskDelegation[] @relation("DelegationsFrom")
-  delegationsReceived TaskDelegation[] @relation("DelegationsTo")
-  
-  // Status history
-  statusChangesMade UserStatusHistory[] @relation("StatusChanger")
-  statusHistory     UserStatusHistory[] @relation("UserStatusHistory")
+  accounts      Account[]
+  sessions      Session[]
+  projects      Project[] @relation("ProjectOwner") // Владелец проектов
+  userProjects  UserProject[] // Участие в проектах (многие ко многим)
 
-  // Timestamps
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  deletedAt DateTime?
+  @@index([email])
+  @@index([deletedAt])
+}
 
-  @@map("users")
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([sessionToken])
+  @@index([userId])
+  @@index([expires])
+}
+
+// НОВАЯ МОДЕЛЬ: Связь "многие ко многим" между User и Project
+// Это таблица-связка (junction table)
+model UserProject {
+  userId    String
+  projectId String
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@id([userId, projectId]) // Составной первичный ключ
+  @@index([userId])
+  @@index([projectId])
 }
 
 model Project {
-  id          Int           @id @default(autoincrement())
+  id          String   @id @default(cuid())
   name        String
   description String?
-  ownerId     Int
-  owner       User          @relation("ProjectOwner", fields: [ownerId], references: [id])
-  status      ProjectStatus @default(ACTIVE)
+  status      String   @default("ACTIVE")
   startDate   DateTime?
   endDate     DateTime?
+  ownerId     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  // Relations
-  groups       Group[]
-  tasks        Task[]
-  userProjects UserProject[]
-
-  // Timestamps
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  deletedAt DateTime?
-
-  @@map("projects")
-}
-
-model Group {
-  id          Int       @id @default(autoincrement())
-  name        String
-  description String?
-  projectId   Int
-  project     Project   @relation(fields: [projectId], references: [id])
-
-  // Relations
-  users      UserGroup[]
-  tasks      Task[]
-
-  // Timestamps
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  deletedAt DateTime?
-
-  @@map("groups")
-}
-
-// ОБНОВЛЯЕМ: добавляем поля для управления доступом пользователя к проекту
-model UserProject {
-  id            Int       @id @default(autoincrement())
-  userId        Int
-  projectId     Int
-  role          Role      @default(USER)
-  
-  // ДОБАВЛЯЕМ: область видимости пользователя в проекте
-  scope         UserScope @default(ALL)
-  
-  // ДОБАВЛЯЕМ: JSON массив с ID групп, которые видит пользователь
-  visibleGroups Json?     
-  
-  // ДОБАВЛЯЕМ: флаг активности пользователя в проекте
-  isActive      Boolean   @default(true)
-  
-  user          User    @relation(fields: [userId], references: [id])
-  project       Project @relation(fields: [projectId], references: [id])
-
-  @@unique([userId, projectId])
-  @@map("user_projects")
-}
-
-model UserGroup {
-  id      Int   @id @default(autoincrement())
-  userId  Int
-  groupId Int
-  user    User  @relation(fields: [userId], references: [id])
-  group   Group @relation(fields: [groupId], references: [id])
-
-  @@unique([userId, groupId])
-  @@map("user_groups")
-}
-
-model Task {
-  id              Int       @id @default(autoincrement())
-  title           String
-  description     String?
-  status          TaskStatus @default(TODO)
-  priority        Priority   @default(MEDIUM)
-  dueDate         DateTime?
-  
-  // Project and group relations
-  projectId Int
-  project   Project @relation(fields: [projectId], references: [id])
-  groupId   Int?
-  group     Group?  @relation(fields: [groupId], references: [id])
-  
-  // Creator
-  creatorId Int
-  creator   User @relation("CreatedTasks", fields: [creatorId], references: [id])
-  
-  // Time tracking
-  estimatedHours Int?
-  actualHours    Int? @default(0)
-
-  // Relations
-  assignments TaskAssignment[]
-  delegations TaskDelegation[]
-  comments    Comment[]
-
-  // Timestamps
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([projectId])
-  @@index([groupId])
-  @@index([creatorId])
-  @@index([status])
-  @@index([priority])
-  @@map("tasks")
-}
-
-model TaskAssignment {
-  id        Int      @id @default(autoincrement())
-  taskId    Int
-  task      Task     @relation(fields: [taskId], references: [id])
-  userId    Int
-  user      User     @relation(fields: [userId], references: [id])
-  assignedBy Int
-  assignedAt DateTime @default(now())
-
-  @@unique([taskId, userId])
-  @@map("task_assignments")
-}
-
-model TaskDelegation {
-  id          Int              @id @default(autoincrement())
-  taskId      Int
-  task        Task             @relation(fields: [taskId], references: [id])
-  fromUserId  Int
-  fromUser    User             @relation("DelegationsFrom", fields: [fromUserId], references: [id])
-  toUserId    Int
-  toUser      User             @relation("DelegationsTo", fields: [toUserId], references: [id])
-  status      DelegationStatus @default(PENDING)
-  reason      String?
-  responseNote String?
-  
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  @@index([taskId])
-  @@index([fromUserId])
-  @@index([toUserId])
-  @@index([status])
-  @@map("task_delegations")
-}
-
-model Comment {
-  id        Int      @id @default(autoincrement())
-  content   String
-  authorId  Int
-  author    User     @relation(fields: [authorId], references: [id])
-  taskId    Int?
-  task      Task?    @relation(fields: [taskId], references: [id])
-  parentId  Int?
-  parent    Comment? @relation("CommentReplies", fields: [parentId], references: [id])
-  replies   Comment[] @relation("CommentReplies")
-  mentions  Json?
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([taskId])
-  @@index([parentId])
-  @@map("comments")
-}
-
-model Notification {
-  id         Int              @id @default(autoincrement())
-  type       NotificationType
-  title      String
-  message    String
-  userId     Int
-  user       User             @relation(fields: [userId], references: [id])
-  entityType String?
-  entityId   Int?
-  isRead     Boolean          @default(false)
-  isSent     Boolean          @default(false)
-
-  createdAt DateTime @default(now())
-
-  @@map("notifications")
-}
-
-model ActivityLog {
-  id         Int     @id @default(autoincrement())
-  userId     Int
-  user       User    @relation(fields: [userId], references: [id])
-  actionType String
-  entityType String?
-  entityId   Int?
-  oldValues  Json?
-  newValues  Json?
-  ipAddress  String?
-  userAgent  String?
-
-  createdAt DateTime @default(now())
-
-  @@map("activity_logs")
-}
-
-model UserStatusHistory {
-  id        Int      @id @default(autoincrement())
-  userId    Int
-  user      User     @relation("UserStatusHistory", fields: [userId], references: [id])
-  oldStatus Boolean
-  newStatus Boolean
-  changedById Int
-  changer   User     @relation("StatusChanger", fields: [changedById], references: [id])
-  reason    String?
-  ipAddress String?
-  userAgent String?
-  
-  createdAt DateTime @default(now())
-
-  @@map("user_status_history")
+  owner       User          @relation("ProjectOwner", fields: [ownerId], references: [id])
+  userProjects UserProject[] // Участники проекта
 }

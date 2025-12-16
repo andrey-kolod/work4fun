@@ -1,3 +1,5 @@
+// src/components/layout/ClientLayout.tsx
+
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -13,9 +15,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   const prevPathRef = useRef(pathname);
   const [mounted, setMounted] = useState(false);
 
-  // Используем useEffect для асинхронной установки mounted
   useEffect(() => {
-    // Используем requestAnimationFrame для асинхронного обновления состояния
     const animationFrameId = requestAnimationFrame(() => {
       setMounted(true);
     });
@@ -24,13 +24,9 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   }, []);
 
   useEffect(() => {
-    // Показываем загрузчик при смене маршрута
     if (pathname !== prevPathRef.current && mounted) {
-      // Используем setTimeout для асинхронного обновления состояния
       const timer = setTimeout(() => {
         setLoading(true);
-
-        // Убираем лоадер через 300мс
         const hideLoaderTimer = setTimeout(() => {
           setLoading(false);
           prevPathRef.current = pathname;
@@ -45,17 +41,9 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     }
   }, [pathname, mounted]);
 
-  // 🔧 Определяем страницы без хедера
   const hideHeaderPaths = ['/', '/login', '/register'];
   const showHeader = !hideHeaderPaths.includes(pathname);
-  const showSidebar = showHeader; // Сайдбар показываем там же где и хедер
-
-  // 🔧 Определяем дополнительные отступы для разных страниц
-  const getTopPadding = () => {
-    if (pathname === '/') return ''; // Убираем padding для главной
-    if (pathname === '/login' || pathname === '/register') return 'pt-10 md:pt-16';
-    return 'pt-6';
-  };
+  const showSidebar = showHeader;
 
   if (!mounted) {
     return null;
@@ -66,7 +54,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
       {showHeader && <Header />}
       {showSidebar && <Sidebar />}
       {loading && <PageLoader />}
-      <main className={`${showSidebar ? 'lg:pl-64' : ''} ${getTopPadding()}`}>
+      <main className={`${showSidebar ? 'lg:pl-64' : ''}`}>
         <ToastProvider>{children}</ToastProvider>
       </main>
     </>

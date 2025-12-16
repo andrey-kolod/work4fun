@@ -1,9 +1,22 @@
-// src/app/project-select/ProjectSelectorClient.tsx
+// ============================================================================
+// ФАЙЛ: src/app/project-select/ProjectSelectorClient.tsx
+// НАЗНАЧЕНИЕ: Клиентская часть страницы выбора проекта
+// ----------------------------------------------------------------------------
+// Что здесь происходит (для новичка):
+// 1. 'use client' — работает в браузере (можно кликать, выбирать)
+// 2. Показывает карточки проектов
+// 3. Если кликнуть на карточку → она подсвечивается
+// 4. Кнопка "Перейти к проекту" → кидает на /tasks с projectId
+// 5. Если супер-админ — кнопка "Создать новый проект"
+// 6. Красивый дизайн + спиннер при загрузке
+// ============================================================================
+
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState } from 'react'; // useState — храним, какой проект выбран
+import { useRouter } from 'next/navigation'; // useRouter — для перехода на /tasks
 
+// Тип проекта — как выглядит каждый проект из базы
 interface Project {
   id: number;
   name: string;
@@ -19,6 +32,7 @@ interface Project {
   };
 }
 
+// Пропсы, которые приходят с сервера
 interface ProjectSelectorProps {
   projects: Project[];
   userRole: string;
@@ -30,39 +44,43 @@ export default function ProjectSelectorClient({
   userRole,
   userName,
 }: ProjectSelectorProps) {
+  // selectedProject — id выбранного проекта (null = ничего не выбрано)
   const [selectedProject, setSelectedProject] = useState<number | null>(
-    projects.length === 1 ? projects[0].id : null
+    projects.length === 1 ? projects[0].id : null // Если 1 проект — сразу выбираем его
   );
-  const [isLoading, setIsLoading] = useState(false);
-  const router = useRouter();
 
+  const [isLoading, setIsLoading] = useState(false); // true = крутится спиннер на кнопке
+  const router = useRouter(); // Для перехода на другую страницу
+
+  // Когда нажимаем "Перейти к проекту"
   const handleProjectSelect = async () => {
-    if (!selectedProject) return;
-    setIsLoading(true);
+    if (!selectedProject) return; // Если ничего не выбрано — ничего не делаем
+    setIsLoading(true); // Показываем "Переход..."
     try {
-      // 🔧 ИСПРАВЛЕНИЕ: Перенаправляем на /tasks, а не /dashboard
+      // Переходим на канбан-доску с projectId в адресе
       router.push(`/tasks?projectId=${selectedProject}`);
     } catch (error) {
-      console.error('Error selecting project:', error);
-      alert('Ошибка при выборе проекта');
+      console.error('Ошибка при выборе проекта:', error);
+      alert('Не получилось перейти к проекту');
     } finally {
       setIsLoading(false);
     }
   };
 
+  // Кнопка "Создать новый проект" — только для супер-админа
   const handleCreateProject = () => {
     router.push('/admin/projects/create');
   };
 
-  // Форматируем роль для отображения
+  // Функция: превращаем роль в красивый текст
   const getRoleDisplay = (role: string) => {
     switch (role) {
       case 'SUPER_ADMIN':
         return 'Супер-администратор';
-      case 'ADMIN':
-        return 'Администратор';
-      case 'USER':
-        return 'Пользователь';
+      case 'PROJECT_LEAD':
+        return 'Руководитель проекта';
+      case 'PROJECT_MEMBER':
+        return 'Участник проекта';
       default:
         return role;
     }
@@ -71,6 +89,7 @@ export default function ProjectSelectorClient({
   return (
     <div className="w-full max-w-2xl">
       <div className="bg-white rounded-lg shadow-lg p-8">
+        {/* Заголовок */}
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Добро пожаловать, {userName}!</h1>
           <p className="text-gray-600">Выберите проект для работы</p>
@@ -79,6 +98,7 @@ export default function ProjectSelectorClient({
           </div>
         </div>
 
+        {/* Если проектов нет */}
         {projects.length === 0 ? (
           <div className="text-center py-8">
             <div className="text-4xl mb-4">📁</div>
@@ -99,16 +119,17 @@ export default function ProjectSelectorClient({
           </div>
         ) : (
           <>
+            {/* Список проектов */}
             <div className="space-y-4 mb-6">
               {projects.map((project) => (
                 <div
-                  key={project.id}
+                  key={project.id} // Обязательно уникальный key
                   className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
                     selectedProject === project.id
-                      ? 'border-purple-500 bg-purple-50'
-                      : 'border-gray-200 hover:border-purple-300 hover:bg-gray-50'
+                      ? 'border-purple-500 bg-purple-50' // Выбранный — фиолетовый
+                      : 'border-gray-200 hover:border-purple-300 hover:bg-gray-50' // Наведение — подсветка
                   }`}
-                  onClick={() => setSelectedProject(project.id)}
+                  onClick={() => setSelectedProject(project.id)} // Клик — выбираем проект
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
@@ -129,6 +150,7 @@ export default function ProjectSelectorClient({
                       </div>
                     </div>
 
+                    {/* Кружок "выбран" */}
                     <div
                       className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
                         selectedProject === project.id
@@ -145,6 +167,7 @@ export default function ProjectSelectorClient({
               ))}
             </div>
 
+            {/* Кнопка "Перейти к проекту" */}
             <button
               onClick={handleProjectSelect}
               disabled={!selectedProject || isLoading}
@@ -160,6 +183,7 @@ export default function ProjectSelectorClient({
               )}
             </button>
 
+            {/* Кнопка "Создать новый проект" — только супер-админу */}
             {userRole === 'SUPER_ADMIN' && (
               <div className="mt-4 text-center">
                 <button
