@@ -144,3 +144,46 @@ body {
 .task-card {
   backdrop-filter: blur(10px);
 }
+
+/* Глобальные стили фокуса — ЛИЛОВЫЕ для всего проекта */
+@layer base {
+  :focus-visible {
+    outline: 2px solid #a855f7 !important; /* твой primary-500 */
+    outline-offset: 2px !important;
+  }
+
+  /* Input'ы — убираем синий фон */
+  input:focus-visible {
+    outline: none !important;
+    box-shadow: 0 0 0 2px #a855f7/0.5 !important;
+  }
+
+  /* Кнопки */
+  button:focus-visible {
+    outline: 2px solid #a855f7 !important;
+    outline-offset: 2px !important;
+  }
+
+  /* Ссылки */
+  a:focus-visible {
+    outline: 2px solid #a855f7 !important;
+    outline-offset: 2px !important;
+    border-radius: 6px;
+  }
+  /* Единообразные закруглённые углы для всех интерактивных элементов */
+  @layer components {
+    input,
+    button,
+    select,      /* ← добавь */
+    textarea,    /* ← добавь */
+    [type='checkbox'],
+    [type='radio'] {
+      @apply rounded-md;
+    }
+
+    /* Ссылки тоже закругляем при фокусе */
+    a:focus-visible {
+      @apply rounded-md;
+    }
+  }
+}

@@ -1,29 +1,18 @@
-// ============================================================================
 // ФАЙЛ: src/app/(user-auth)/login/page.tsx
 // НАЗНАЧЕНИЕ: Страница входа в систему (/login)
-// ----------------------------------------------------------------------------
-// Что здесь происходит (для новичка — строка за строкой):
-// 1. 'use client' — работает в браузере (нужно для форм, состояний, reCAPTCHA)
-// 2. Импортируем React явно — чтобы TypeScript не ругался
-// 3. reCAPTCHA v3 — невидимая защита от ботов (Google проверяет, человек ли ты)
-// 4. Если Google скажет "бот" (score < 0.5) — блокируем вход
-// 5. Всё остальное — как раньше: валидация, глазик, чекбокс
-// ============================================================================
 
 'use client';
 
-import React, { useState, useRef } from 'react'; // Явно импортируем React (фикс ошибки UMD)
+import { useState, useRef } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import Link from 'next/link';
 import { Eye, EyeOff } from 'lucide-react';
-import ReCAPTCHA from 'react-google-recaptcha'; // reCAPTCHA v3 (невидимая)
-
+import ReCAPTCHA from 'react-google-recaptcha';
 import { loginSchema } from '@/lib/validations/auth';
 import type { LoginInput } from '@/lib/validations/auth';
-
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
@@ -32,26 +21,21 @@ import { Checkbox } from '@/components/ui/Checkbox';
 
 export default function LoginPage() {
   const router = useRouter();
-
-  // Ссылка на reCAPTCHA — чтобы вызвать её вручную
   const recaptchaRef = useRef<ReCAPTCHA>(null);
 
-  // Состояния (переменные, которые меняются)
-  const [isLoading, setIsLoading] = useState(false); // true — кнопка крутит спиннер
-  const [serverError, setServerError] = useState(''); // текст ошибки от сервера
-  const [showPassword, setShowPassword] = useState(false); // показывать пароль текстом
-  const [rememberMe, setRememberMe] = useState(false); // чекбокс "Запомнить меня"
+  const [isLoading, setIsLoading] = useState(false);
+  const [serverError, setServerError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
 
-  // Форма с автоматической проверкой
   const {
-    register, // привязываем поля к форме
-    handleSubmit, // вызываем при отправке
-    formState: { errors }, // ошибки валидации
+    register,
+    handleSubmit,
+    formState: { errors },
   } = useForm<LoginInput>({
-    resolver: zodResolver(loginSchema), // используем правила из loginSchema
+    resolver: zodResolver(loginSchema),
   });
 
-  // Функция при нажатии "Войти"
   const onSubmit = async (data: LoginInput) => {
     console.log('🔐 Попытка входа:', data.email);
 
@@ -59,9 +43,8 @@ export default function LoginPage() {
     setServerError('');
 
     try {
-      // Шаг 1: Запускаем reCAPTCHA v3 (невидимую)
       const recaptchaToken = await recaptchaRef.current?.executeAsync();
-      recaptchaRef.current?.reset(); // Сбрасываем после выполнения
+      recaptchaRef.current?.reset();
 
       if (!recaptchaToken) {
         setServerError('Не удалось пройти проверку reCAPTCHA');
@@ -69,7 +52,6 @@ export default function LoginPage() {
         return;
       }
 
-      // Шаг 2: Отправляем токен на наш сервер для проверки у Google
       const verifyRes = await fetch('/api/auth/recaptcha', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -78,7 +60,6 @@ export default function LoginPage() {
 
       const verifyData = await verifyRes.json();
 
-      // Если Google сказал "бот" или ошибка
       if (!verifyData.success || verifyData.score < 0.5) {
         console.warn('reCAPTCHA: подозрительный пользователь, score:', verifyData.score);
         setServerError('Проверка не пройдена. Попробуйте позже.');
@@ -86,7 +67,6 @@ export default function LoginPage() {
         return;
       }
 
-      // Шаг 3: reCAPTCHA прошла — выполняем вход
       const result = await signIn('credentials', {
         email: data.email,
         password: data.password,
@@ -124,6 +104,7 @@ export default function LoginPage() {
               </div>
             )}
 
+            {/* Электронная почта */}
             <div className="space-y-2">
               <Label htmlFor="email">Электронная почта</Label>
               <Input
@@ -137,6 +118,7 @@ export default function LoginPage() {
               />
             </div>
 
+            {/* Пароль */}
             <div className="space-y-2">
               <Label htmlFor="password">Пароль</Label>
               <div className="relative">
@@ -159,6 +141,7 @@ export default function LoginPage() {
               </div>
             </div>
 
+            {/* Запомнить меня */}
             <div className="flex items-center justify-between">
               <label className="flex items-center space-x-2 cursor-pointer">
                 <Checkbox
@@ -168,12 +151,14 @@ export default function LoginPage() {
                 />
                 <span className="text-sm">Запомнить меня</span>
               </label>
+
+              {/* Забыли пароль */}
               <Link href="/password/reset" className="text-sm text-primary hover:underline">
                 Забыли пароль?
               </Link>
             </div>
 
-            {/* reCAPTCHA v3 — полностью невидимая */}
+            {/* reCAPTCHA */}
             <ReCAPTCHA
               sitekey={process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY!}
               size="invisible"
