@@ -133,7 +133,7 @@ export default function LoginPage() {
                 {...register('email')}
                 error={errors.email?.message}
                 disabled={isLoading}
-                value={'user@workflow.com'}
+                value={'superadmin@w4f.com'}
               />
             </div>
 

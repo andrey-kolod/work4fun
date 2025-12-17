@@ -1,18 +1,3 @@
-// ============================================================================
-// ФАЙЛ: /prisma/schema.prisma
-// НАЗНАЧЕНИЕ: Схема базы данных (Data Schema)
-// ----------------------------------------------------------------------------
-// Этот файл определяет структуру базы данных:
-// 1. Какие таблицы будут в базе
-// 2. Какие поля в каждой таблице
-// 3. Как таблицы связаны между собой
-// 
-// Prisma использует этот файл для:
-// - Создания миграций (изменений в БД)
-// - Генерации TypeScript типов
-// - Создания клиента для работы с БД
-// ============================================================================
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -22,31 +7,24 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum Role {
-  SUPER_ADMIN
-  PROJECT_LEAD
-  PROJECT_MEMBER
-}
-
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique @db.VarChar(255)
-  firstName     String    @db.VarChar(50)
-  lastName      String    @db.VarChar(50)
-  middleName    String?   @db.VarChar(50)
+  id            String        @id @default(cuid())
+  email         String        @unique @db.VarChar(255)
+  firstName     String        @db.VarChar(50)
+  lastName      String        @db.VarChar(50)
+  middleName    String?       @db.VarChar(50)
   passwordHash  String?
-  emailVerified Boolean   @default(false)
-  phone         String?   @db.VarChar(20)
-  role          Role      @default(PROJECT_MEMBER)
+  emailVerified Boolean       @default(false)
+  phone         String?       @db.VarChar(20)
+  role          Role          @default(PROJECT_MEMBER)
   avatar        String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
   deletedAt     DateTime?
-
   accounts      Account[]
+  projects      Project[]     @relation("ProjectOwner")
   sessions      Session[]
-  projects      Project[] @relation("ProjectOwner") // Владелец проектов
-  userProjects  UserProject[] // Участие в проектах (многие ко многим)
+  userProjects  UserProject[]
 
   @@index([email])
   @@index([deletedAt])
@@ -58,15 +36,14 @@ model Account {
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
+  refresh_token     String?
+  access_token      String?
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String? @db.Text
+  id_token          String?
   session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
   @@index([userId])
@@ -77,39 +54,40 @@ model Session {
   sessionToken String   @unique
   userId       String
   expires      DateTime
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([sessionToken])
   @@index([userId])
   @@index([expires])
 }
 
-// НОВАЯ МОДЕЛЬ: Связь "многие ко многим" между User и Project
-// Это таблица-связка (junction table)
 model UserProject {
   userId    String
   projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-
-  @@id([userId, projectId]) // Составной первичный ключ
+  @@id([userId, projectId])
   @@index([userId])
   @@index([projectId])
 }
 
 model Project {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  status      String   @default("ACTIVE")
-  startDate   DateTime?
-  endDate     DateTime?
-  ownerId     String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String        @id @default(cuid())
+  name         String
+  description  String?
+  status       String        @default("ACTIVE")
+  startDate    DateTime?
+  endDate      DateTime?
+  ownerId      String
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  owner        User          @relation("ProjectOwner", fields: [ownerId], references: [id])
+  userProjects UserProject[]
+}
 
-  owner       User          @relation("ProjectOwner", fields: [ownerId], references: [id])
-  userProjects UserProject[] // Участники проекта
+enum Role {
+  SUPER_ADMIN
+  PROJECT_LEAD
+  PROJECT_MEMBER
 }

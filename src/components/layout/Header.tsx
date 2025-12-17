@@ -1,125 +1,36 @@
-// ============================================================================
 // ФАЙЛ: src/components/layout/Header.tsx
 // НАЗНАЧЕНИЕ: Шапка сайта (верхняя панель) — видна только авторизованным пользователям
-// ----------------------------------------------------------------------------
-// Что здесь происходит (для новичка — строка за строкой):
-// 1. 'use client' — компонент работает в браузере (нужно для useSession, useState и т.д.)
-// 2. useSession — проверяет, залогинен ли пользователь
-// 3. Кнопка "Выйти" — вызывает signOut() от NextAuth и кидает на /login
-// 4. Показывает имя пользователя, роль, аватарку, текущий проект
-// 5. Кнопки Dashboard и Kanban — быстрый переход
-// 6. Меню-бургер — открывает/закрывает боковую панель (Sidebar)
-// 7. Хедер скрывается на публичных страницах (/login, /)
-// ============================================================================
 
-'use client'; // Этот компонент работает в браузере (клиентский)
+'use client';
 
-import React, { useState, useEffect } from 'react'; // React — основа, useState — для хранения данных, useEffect — выполняется после загрузки
-import Link from 'next/link'; // Link — ссылка, которая не перезагружает страницу
-import { useSession, signOut } from 'next-auth/react'; // useSession — проверяет сессию, signOut — выходит из аккаунта
-import { useRouter, usePathname } from 'next/navigation'; // useRouter — переходы, usePathname — текущий URL
-import { useAppStore } from '@/store/useAppStore'; // Твой глобальный стейт (zustand) — хранит выбранный проект и состояние сайдбара
-import { Button } from '@/components/ui/Button'; // Твоя красивая кнопка
+import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { useSession, signOut } from 'next-auth/react';
+import { useRouter, usePathname } from 'next/navigation';
+import { useAppStore } from '@/store/useAppStore';
+import Image from 'next/image';
+import { Button } from '@/components/ui/Button';
 
-// Header — это функция, которая возвращает HTML шапки
 const Header: React.FC = () => {
-  // useSession — хук от NextAuth: даёт session (данные пользователя) и status (loading/authenticated/unauthenticated)
   const { data: session, status } = useSession();
 
-  const router = useRouter(); // Для переходов по страницам
-  const pathname = usePathname(); // Текущий URL (например, /dashboard)
+  const router = useRouter();
+  const pathname = usePathname();
 
-  // Достаём данные из твоего глобального стора (zustand)
   const { selectedProject, sidebarOpen, setSidebarOpen } = useAppStore();
 
-  const [isLoading, setIsLoading] = useState(false); // true — когда идёт выход (крутим спиннер)
-  const [mounted, setMounted] = useState(false); // true — когда компонент загрузился в браузере
+  const [isLoading, setIsLoading] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
-  // useEffect — выполняется один раз после загрузки компонента
-  useEffect(() => {
-    setMounted(true); // Теперь можно показывать реальное содержимое (избегаем hydration error)
-  }, []);
-
-  // Список страниц, где хедер НЕ показывается (публичные)
-  const hideHeaderPaths = ['/', '/login', '/register', '/password/reset'];
-  const shouldHideHeader = hideHeaderPaths.includes(pathname);
-
-  // Пока идёт проверка сессии — показываем "скелетон" (серые плашки вместо текста)
-  if (!mounted || status === 'loading') {
-    return (
-      <header className="sticky top-0 z-30 bg-white border-b border-gray-200 shadow-sm">
-        <div className="container mx-auto px-4">
-          <div className="flex items-center justify-between h-16">
-            {/* Логотип — серая плашка */}
-            <div className="h-6 w-32 bg-gray-200 animate-pulse rounded"></div>
-            {/* Кнопка выхода — серая плашка */}
-            <div className="h-8 w-24 bg-gray-200 animate-pulse rounded"></div>
-          </div>
-        </div>
-      </header>
-    );
-  }
-
-  // Если страница публичная (например, /login) — хедер не показываем
-  if (shouldHideHeader) {
-    return null; // Ничего не рендерим
-  }
-
-  // Если пользователь не залогинен — хедер не показываем (middleware уже редиректит)
-  if (!session) {
-    return null;
-  }
-
-  // Функция выхода из аккаунта
-  const handleLogout = async () => {
-    try {
-      setIsLoading(true); // Включаем спиннер
-      console.log('🔓 Начинаем выход из аккаунта...');
-
-      // signOut — удаляет сессию и куки
-      await signOut({
-        redirect: false, // Не переходим автоматически
-        callbackUrl: '/login', // Куда перейти после выхода
-      });
-
-      console.log('✅ Успешный выход! Переходим на /login');
-      router.push('/login'); // Переходим на страницу входа
-    } catch (error) {
-      console.error('❌ Ошибка при выходе:', error);
-    } finally {
-      setIsLoading(false); // Выключаем спиннер
-    }
-  };
-
-  // Переход на Dashboard
-  const goToDashboard = () => {
-    if (selectedProject) {
-      router.push(`/dashboard?projectId=${selectedProject.id}`);
-    } else {
-      router.push('/dashboard');
-    }
-  };
-
-  // Переход на Канбан-доску
-  const goToKanban = () => {
-    if (selectedProject) {
-      router.push(`/tasks?projectId=${selectedProject.id}`);
-    } else {
-      router.push('/tasks');
-    }
-  };
-
-  // Получаем имя пользователя (firstName → name → email)
   const getUserName = () => {
     if (!session?.user) return '';
     const user = session.user as any;
     if (user.firstName) return user.firstName;
     if (user.name) return user.name;
-    if (user.email) return user.email.split('@')[0]; // Берём часть до @
+    if (user.email) return user.email.split('@')[0];
     return 'Пользователь';
   };
 
-  // Инициалы для аватарки (первая буква имени или email)
   const getUserInitials = () => {
     if (!session?.user) return 'U';
     const user = session.user as any;
@@ -132,15 +43,74 @@ const Header: React.FC = () => {
     return 'U';
   };
 
+  const userAvatar = session?.user?.avatar;
+  const initials = getUserInitials();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const hideHeaderPaths = ['/', '/login', '/register', '/password/reset'];
+  const shouldHideHeader = hideHeaderPaths.includes(pathname);
+
+  if (!mounted || status === 'loading') {
+    return (
+      <header className="sticky top-0 z-30 bg-white border-b border-gray-200 shadow-sm">
+        <div className="container mx-auto px-4">
+          <div className="flex items-center justify-between h-16">
+            <div className="h-6 w-32 bg-gray-200 animate-pulse rounded"></div>
+            <div className="h-8 w-24 bg-gray-200 animate-pulse rounded"></div>
+          </div>
+        </div>
+      </header>
+    );
+  }
+
+  if (shouldHideHeader) {
+    return null;
+  }
+
+  if (!session) {
+    return null;
+  }
+
+  const handleLogout = async () => {
+    try {
+      setIsLoading(true);
+      console.log('🔓 Начинаем выход из аккаунта...');
+
+      await signOut({
+        redirect: false,
+        callbackUrl: '/login',
+      });
+
+      console.log('✅ Успешный выход! Переходим на /login');
+      router.push('/login');
+    } catch (error) {
+      console.error('❌ Ошибка при выходе:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const goToDashboard = () => {
+    if (selectedProject) {
+      router.push(`/dashboard?projectId=${selectedProject.id}`);
+    }
+  };
+
+  const goToKanban = () => {
+    if (selectedProject) {
+      router.push(`/tasks?projectId=${selectedProject.id}`);
+    }
+  };
+
   return (
     <header className="sticky top-0 z-30 bg-white border-b border-gray-200 shadow-sm">
-      {/* sticky top-0 — хедер прилипает к верху при скролле */}
-      {/* z-30 — выше всех элементов */}
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
-          {/* ЛЕВАЯ ЧАСТЬ: меню + логотип + быстрые кнопки */}
           <div className="flex items-center gap-4">
-            {/* Кнопка меню (бургер) — открывает сайдбар */}
+            {/* Sidebar */}
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
               className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
@@ -156,22 +126,24 @@ const Header: React.FC = () => {
               </svg>
             </button>
 
-            {/* Логотип — кликабельный, ведёт на дашборд */}
-            <Link href="/dashboard" className="flex items-center gap-2">
+            {/* Логотип */}
+            <Link href="/tasks" className="flex items-center gap-2">
               <span className="text-xl font-bold text-purple-600">Work4Fun</span>
             </Link>
 
-            {/* Кнопка Dashboard — подсвечивается, если мы на дашборде */}
-            <Button
-              onClick={goToDashboard}
-              variant={pathname.startsWith('/dashboard') ? 'primary' : 'ghost'}
-              className="hidden md:flex items-center gap-2"
-            >
-              <span>📊</span>
-              Dashboard
-            </Button>
+            {/* Dashboard*/}
+            {selectedProject && (
+              <Button
+                onClick={goToDashboard}
+                variant={pathname.startsWith('/dashboard') ? 'primary' : 'ghost'}
+                className="hidden md:flex items-center gap-2"
+              >
+                <span>📊</span>
+                Dashboard
+              </Button>
+            )}
 
-            {/* Кнопка Канбан — показывается только если проект выбран */}
+            {/* Канбан */}
             {selectedProject && (
               <Button
                 onClick={goToKanban}
@@ -184,9 +156,8 @@ const Header: React.FC = () => {
             )}
           </div>
 
-          {/* ПРАВАЯ ЧАСТЬ: проект + пользователь + выход */}
           <div className="flex items-center gap-4">
-            {/* Название текущего проекта (показывается только если выбран) */}
+            {/* Название проекта */}
             {selectedProject && (
               <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-gray-100 rounded-full">
                 <span className="text-sm font-medium text-gray-700">{selectedProject.name}</span>
@@ -197,16 +168,29 @@ const Header: React.FC = () => {
             <div className="hidden md:flex flex-col items-end">
               <span className="text-sm font-medium text-gray-900">{getUserName()}</span>
               <span className="text-xs text-gray-500 capitalize">
-                {(session.user as any).role?.toLowerCase().replace('_', ' ') || 'пользователь'}
+                {session.user?.role?.toLowerCase().replace('_', ' ') || 'пользователь'}
               </span>
             </div>
 
-            {/* Аватарка — круг с инициалом */}
-            <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
-              <span className="text-purple-600 font-medium">{getUserInitials()}</span>
+            {/* Аватарка / Круг с инициалом */}
+            <div className="w-8 h-8 rounded-full overflow-hidden bg-purple-100 flex items-center justify-center">
+              {userAvatar ? (
+                <Image
+                  src={userAvatar}
+                  alt={
+                    `${session?.user?.firstName || ''} ${session?.user?.lastName || ''}`.trim() ||
+                    'Аватар'
+                  }
+                  width={32}
+                  height={32}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span className="text-purple-600 font-medium text-sm">{initials}</span>
+              )}
             </div>
 
-            {/* Кнопка ВЫХОД — красная */}
+            {/* ВЫХОД */}
             <Button
               onClick={handleLogout}
               variant="ghost"

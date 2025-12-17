@@ -1,0 +1,31 @@
+<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <!-- Фон градиент -->
+  <defs>
+    <radialGradient id="bg1" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#667eea"/>
+      <stop offset="70%" stop-color="#764ba2"/>
+    </radialGradient>
+  </defs>
+  
+  <!-- Основной круг -->
+  <circle cx="50" cy="50" r="50" fill="url(#bg1)"/>
+  
+  <!-- Лицо -->
+  <circle cx="50" cy="45" r="22" fill="#f8f9ff"/>
+  
+  <!-- Глаза -->
+  <circle cx="38" cy="40" r="4" fill="#333"/>
+  <circle cx="62" cy="40" r="4" fill="#333"/>
+  
+  <!-- Брови -->
+  <path d="M35 32 Q45 28 55 32" stroke="#333" stroke-width="3" fill="none"/>
+  
+  <!-- Нос -->
+  <path d="M50 48 L48 55 L52 55 Z" fill="#333"/>
+  
+  <!-- Улыбка -->
+  <path d="M40 60 Q50 68 60 60" stroke="#333" stroke-width="3" stroke-linecap="round" fill="none"/>
+  
+  <!-- Волосы/борода -->
+  <path d="M25 35 Q30 25 40 28 Q50 22 60 28 Q70 25 75 35" fill="#4a5568"/>
+</svg>

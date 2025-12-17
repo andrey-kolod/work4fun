@@ -44,6 +44,7 @@ declare module 'next-auth' {
       firstName: string; // Имя (наше поле)
       lastName: string; // Фамилия (наше поле)
       role: Role; // Роль пользователя
+      avatar?: string | null; // Аватар
     };
   }
 }
@@ -61,5 +62,6 @@ declare module 'next-auth/jwt' {
     lastName: string; // Фамилия
     role: Role; // Роль
     email?: string; // Email (опционально)
+    avatar?: string | null; // Аватар
   }
 }

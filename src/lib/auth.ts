@@ -148,6 +148,7 @@ export const authOptions: NextAuthOptions = {
             lastName: user.lastName || '',
             role: user.role as Role, // Роль пользователя
             name: [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email, // Полное имя для отображения
+            avatar: user.avatar || null,
           };
         } catch (error) {
           console.error('Ошибка при аутентификации:', error);
@@ -173,11 +174,22 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       // При первом входе (user существует) добавляем наши данные в токен
       if (user) {
-        token.id = user.id;
-        token.role = user.role;
-        token.firstName = user.firstName;
-        token.lastName = user.lastName;
-        token.email = user.email;
+        // Приводим к нашему типу (из authorize)
+        const appUser = user as {
+          id: string;
+          email: string;
+          firstName: string;
+          lastName: string;
+          role: Role;
+          avatar: string | null;
+        };
+
+        token.id = appUser.id;
+        token.role = appUser.role;
+        token.firstName = appUser.firstName;
+        token.lastName = appUser.lastName;
+        token.email = appUser.email;
+        token.avatar = appUser.avatar;
       }
       return token;
     },
@@ -190,6 +202,7 @@ export const authOptions: NextAuthOptions = {
         session.user.role = token.role as Role;
         session.user.firstName = token.firstName as string;
         session.user.lastName = token.lastName as string;
+        session.user.avatar = token.avatar as string | null;
 
         // Если имя не задано — используем email
         if (!session.user.name && token.email) {
