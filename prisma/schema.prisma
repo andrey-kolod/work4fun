@@ -19,9 +19,11 @@ datasource db {
 
 enum Role {
   SUPER_ADMIN
+  SYSTEM_USER 
   PROJECT_LEAD
   PROJECT_MEMBER
 }
+
 
 model User {
   id            String        @id @default(cuid())

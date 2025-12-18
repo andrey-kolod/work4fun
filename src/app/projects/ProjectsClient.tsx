@@ -1,13 +1,13 @@
-// ФАЙЛ: src/app/project-select/ProjectClient.tsx
-// НАЗНАЧЕНИЕ: Клиентская часть страницы выбора проекта
+// ФАЙЛ: src/app/project-select/ProjectSelectorClient.tsx
+// ✅ СТАРЫЙ ДИЗАЙН + SYSTEM_USER + ЛИМИТЫ + РОЛИ В ПРОЕКТЕ
 
 'use client';
 
-import { useState } from 'react'; // useState — храним, какой проект выбран
-import { useRouter } from 'next/navigation'; // useRouter — для перехода на /tasks
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 interface Project {
-  id: number;
+  id: string; // ✅ cuid() = string
   name: string;
   description: string | null;
   owner: {
@@ -16,22 +16,28 @@ interface Project {
     email: string;
   };
   _count: {
-    tasks: number;
     userProjects: number;
+    Task: number; // ✅ Prisma naming
   };
+  userProjectRole?: string; // Опционально для SUPER_ADMIN
 }
 
 interface ProjectSelectorProps {
   projects: Project[];
   userRole: string;
   userName: string;
+  canCreateProject: boolean;
+  userOwnedProjectsCount: number;
 }
 
-export default function ProjectClient({ projects, userRole, userName }: ProjectSelectorProps) {
-  const [selectedProject, setSelectedProject] = useState<number | null>(
-    projects.length === 1 ? projects[0].id : null
-  );
-
+export default function ProjectSelectorClient({
+  projects,
+  userRole,
+  userName,
+  canCreateProject,
+  userOwnedProjectsCount,
+}: ProjectSelectorProps) {
+  const [selectedProject, setSelectedProject] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
@@ -49,17 +55,37 @@ export default function ProjectClient({ projects, userRole, userName }: ProjectS
   };
 
   const handleCreateProject = () => {
+    if (!canCreateProject) {
+      alert(`Лимит проектов: ${userOwnedProjectsCount}/3`);
+      return;
+    }
     router.push('/admin/projects/create');
   };
 
+  // ✅ Роль в проекте
+  const getProjectRoleDisplay = (role?: string) => {
+    if (!role) return '—';
+    switch (role) {
+      case 'PROJECT_LEAD':
+        return '👑 Руководитель';
+      case 'PROJECT_MEMBER':
+        return '👤 Участник';
+      default:
+        return role;
+    }
+  };
+
+  // ✅ Глобальная роль
   const getRoleDisplay = (role: string) => {
     switch (role) {
       case 'SUPER_ADMIN':
-        return 'Супер-администратор';
+        return '🔧 Супер-администратор';
+      case 'SYSTEM_USER':
+        return '📝 Новый пользователь';
       case 'PROJECT_LEAD':
-        return 'Руководитель проекта';
+        return '👨‍💼 Руководитель';
       case 'PROJECT_MEMBER':
-        return 'Участник проекта';
+        return '👥 Участник';
       default:
         return role;
     }
@@ -68,7 +94,7 @@ export default function ProjectClient({ projects, userRole, userName }: ProjectS
   return (
     <div className="w-full max-w-2xl">
       <div className="bg-white rounded-lg shadow-lg p-8">
-        {/* Заголовок */}
+        {/* Заголовок — СТАРЫЙ ДИЗАЙН */}
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Добро пожаловать, {userName}!</h1>
           <p className="text-gray-600">Выберите проект для работы</p>
@@ -77,28 +103,47 @@ export default function ProjectClient({ projects, userRole, userName }: ProjectS
           </div>
         </div>
 
-        {/* Если проектов нет */}
+        {/* 0 ПРОЕКТОВ — НОВЫЕ СЦЕНАРИИ */}
         {projects.length === 0 ? (
           <div className="text-center py-8">
             <div className="text-4xl mb-4">📁</div>
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Нет доступных проектов</h3>
-            <p className="text-gray-600 mb-4">
-              {userRole === 'SUPER_ADMIN'
-                ? 'Создайте первый проект'
-                : 'Обратитесь к администратору для добавления в проект'}
-            </p>
-            {userRole === 'SUPER_ADMIN' && (
-              <button
-                onClick={handleCreateProject}
-                className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-              >
-                Создать новый проект
-              </button>
+
+            {userRole === 'SUPER_ADMIN' ? (
+              <div className="space-y-3">
+                <p className="text-gray-600">Перейдите в админ-панель</p>
+                <button
+                  onClick={() => router.push('/admin')}
+                  className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                >
+                  В админ-панель
+                </button>
+              </div>
+            ) : canCreateProject ? (
+              <div className="space-y-3">
+                <p className="text-gray-600">Создайте свой первый проект (лимит: 3)</p>
+                <button
+                  onClick={handleCreateProject}
+                  className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+                >
+                  ✨ Создать первый проект
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-gray-600">Лимит проектов ({userOwnedProjectsCount}/3)</p>
+                <button
+                  disabled
+                  className="px-6 py-2 bg-gray-400 text-white rounded-lg cursor-not-allowed opacity-50"
+                >
+                  Лимит: {userOwnedProjectsCount}/3
+                </button>
+              </div>
             )}
           </div>
         ) : (
           <>
-            {/* Список проектов */}
+            {/* Список проектов — СТАРЫЙ ДИЗАЙН */}
             <div className="space-y-4 mb-6">
               {projects.map((project) => (
                 <div
@@ -117,19 +162,19 @@ export default function ProjectClient({ projects, userRole, userName }: ProjectS
                         <p className="text-sm text-gray-600 mt-1">{project.description}</p>
                       )}
                       <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
-                        <span>👥 участников: {project._count?.userProjects || '–'}</span>
-                        <span>✅ задач: {project._count?.tasks || '–'}</span>
-                        <span>
-                          👨‍💼 Владелец: {project.owner.firstName || ''}{' '}
-                          {project.owner.lastName || ''}
-                          {!project.owner.firstName &&
-                            !project.owner.lastName &&
-                            project.owner.email}
+                        {/* ✅ НОВОЕ: Роль в проекте */}
+                        <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
+                          {getProjectRoleDisplay(project.userProjectRole)}
+                        </span>
+                        <span>👥 {project._count.userProjects} участников</span>
+                        <span>✅ {project._count.Task} задач</span>
+                        <span className="truncate max-w-[140px]">
+                          👨‍💼 {project.owner.firstName || project.owner.email}
                         </span>
                       </div>
                     </div>
 
-                    {/* Кружок "выбран" */}
+                    {/* Кружок "выбран" — СТАРЫЙ ДИЗАЙН */}
                     <div
                       className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
                         selectedProject === project.id
@@ -146,11 +191,11 @@ export default function ProjectClient({ projects, userRole, userName }: ProjectS
               ))}
             </div>
 
-            {/* Кнопка "Перейти к проекту" */}
+            {/* Кнопка "Перейти к проекту" — СТАРЫЙ ДИЗАЙН */}
             <button
               onClick={handleProjectSelect}
               disabled={!selectedProject || isLoading}
-              className="w-full bg-purple-600 text-white py-3 px-4 rounded-lg font-semibold hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-purple-600 text-white py-3 px-4 rounded-lg font-semibold hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mb-4"
             >
               {isLoading ? (
                 <div className="flex items-center justify-center">
@@ -162,14 +207,20 @@ export default function ProjectClient({ projects, userRole, userName }: ProjectS
               )}
             </button>
 
-            {/* Кнопка "Создать новый проект" — только супер-админу */}
-            {userRole === 'SUPER_ADMIN' && (
-              <div className="mt-4 text-center">
+            {/* Кнопка создания — НОВЫЕ СЦЕНАРИИ */}
+            {(userRole === 'SUPER_ADMIN' || canCreateProject) && (
+              <div className="text-center">
                 <button
                   onClick={handleCreateProject}
-                  className="text-purple-600 hover:text-purple-800 text-sm font-medium transition-colors"
+                  disabled={!canCreateProject}
+                  className={`text-sm font-medium transition-colors ${
+                    !canCreateProject
+                      ? 'text-gray-400 cursor-not-allowed'
+                      : 'text-purple-600 hover:text-purple-800'
+                  }`}
+                  title={!canCreateProject ? `Лимит: ${userOwnedProjectsCount}/3` : ''}
                 >
-                  Создать новый проект
+                  {canCreateProject ? 'Создать новый проект' : `Лимит: ${userOwnedProjectsCount}/3`}
                 </button>
               </div>
             )}
