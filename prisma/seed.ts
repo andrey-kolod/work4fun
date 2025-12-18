@@ -1,86 +1,161 @@
-// ============================================================================
-// ФАЙЛ: prisma/seed.ts (СУПЕРАДМИН + ПРОЕКТ + АВАТАРКИ)
-// ============================================================================
+/**
+ * ФАЙЛ: prisma/seed.ts
+ * ✅ АВАТАРЫ: добавлены SVG аватары для всех пользователей
+ */
 
-import { PrismaClient } from '@prisma/client';
-import bcrypt from 'bcryptjs';
-
-const prisma = new PrismaClient();
+import { prisma } from '../src/lib/prisma';
+import { hash } from 'bcryptjs';
 
 async function main() {
-  console.log('🌱 Создаём тестовых пользователей и проекты...');
+  console.log('🌱 Seed: создание тестовых данных с аватарами...');
 
-  // 1. Супер-админ С АВАТАРКОЙ
+  // 1. Super Admin
   const superAdmin = await prisma.user.upsert({
     where: { email: 'superadmin@w4f.com' },
     update: {},
     create: {
       email: 'superadmin@w4f.com',
-      passwordHash: await bcrypt.hash('demo123', 12),
-      firstName: 'Андрей',
-      lastName: 'СуперАдмин',
+      firstName: 'Супер',
+      lastName: 'Админ',
+      passwordHash: await hash('demo123', 12),
       role: 'SUPER_ADMIN',
       emailVerified: true,
-      avatar: '/avatars/superadmin.svg',
+      avatar:
+        'https://img.freepik.com/premium-photo/confident-nerd-portrait-young-nerd-man-bow-tie-adjusting-his-suspenders-smiling-while-standing-against-grey-background_425904-37096.jpg', // ← АВАТАР
     },
   });
-  console.log('✅ Супер-админ:', superAdmin.email);
+  console.log('👑 Super Admin:', superAdmin.email);
 
-  // 2. Обычный пользователь С АВАТАРКОЙ
-  await prisma.user.upsert({
-    where: { email: 'user@w4f.com' },
+  // 2. Project Lead
+  const projectLead = await prisma.user.upsert({
+    where: { email: 'lead@w4f.com' },
     update: {},
     create: {
-      email: 'user@w4f.com',
-      passwordHash: await bcrypt.hash('demo123', 12),
-      firstName: 'Тестовый',
-      lastName: 'Пользователь',
+      email: 'lead@w4f.com',
+      firstName: 'Иван',
+      lastName: 'Петров',
+      passwordHash: await hash('demo123', 12),
+      role: 'PROJECT_LEAD',
+      emailVerified: true,
+      avatar: '/avatars/user.svg', // ← АВАТАР
+    },
+  });
+
+  const projectLead2 = await prisma.user.upsert({
+    where: { email: 'lead2@w4f.com' },
+    update: {},
+    create: {
+      email: 'lead2@w4f.com',
+      firstName: 'Андрей',
+      lastName: 'Иванов',
+      passwordHash: await hash('demo123', 12),
+      role: 'PROJECT_LEAD',
+      emailVerified: true,
+      avatar: '/avatars/user.svg', // ← АВАТАР
+    },
+  });
+
+  // 3. Project Member
+  const member = await prisma.user.upsert({
+    where: { email: 'member@w4f.com' },
+    update: {},
+    create: {
+      email: 'member@w4f.com',
+      firstName: 'Анна',
+      lastName: 'Сидорова',
+      passwordHash: await hash('demo123', 12),
       role: 'PROJECT_MEMBER',
       emailVerified: true,
-      avatar: '/avatars/user.svg',
+      avatar: '/avatars/user.svg', // ← АВАТАР
     },
   });
 
-  // 3. ПРОЕКТ для суперадмина (ownerId = superAdmin.id)
-  const superAdminProject = await prisma.project.upsert({
-    where: { id: 'superadmin-project-1' }, // фиксированный ID для upsert
+  // 4. Проект 1
+  const project1 = await prisma.project.upsert({
+    where: { id: 'proj1' },
     update: {},
     create: {
-      id: 'superadmin-project-1', // фиксированный ID
-      name: 'Тестовый проект суперадмина',
-      description: 'Первый проект для тестирования всех фич',
+      id: 'proj1',
+      name: 'Домашние дела', // ← Твой проект
+      description: 'Личные задачи и дела по дому',
+      ownerId: superAdmin.id,
       status: 'ACTIVE',
-      ownerId: superAdmin.id, // владелец — суперадмин
     },
   });
-  console.log('✅ Проект суперадмина:', superAdminProject.name);
 
-  // 4. Связываем суперадмина с проектом (через UserProject)
-  await prisma.userProject.upsert({
-    where: {
-      userId_projectId: {
-        userId: superAdmin.id,
-        projectId: superAdminProject.id,
-      },
-    },
+  // 5. Проект 2
+  const project2 = await prisma.project.upsert({
+    where: { id: 'proj2' },
     update: {},
     create: {
-      userId: superAdmin.id,
-      projectId: superAdminProject.id,
+      id: 'proj2',
+      name: 'Канбан Доска v1.0',
+      description: 'Система управления задачами для команды разработчиков',
+      ownerId: projectLead.id,
+      status: 'ACTIVE',
     },
   });
 
-  console.log('✅ Всё готово!');
-  console.log('👑 superadmin@workflow.com / demo123');
-  console.log('  → Проект:', superAdminProject.name);
-  console.log('  → Аватар: /avatars/superadmin.jpg');
-  console.log('');
-  console.log('👤 user@workflow.com / demo123');
+  // 6. Связи User ↔ Project
+  await prisma.userProject.createMany({
+    data: [
+      { userId: superAdmin.id, projectId: project1.id, role: 'PROJECT_LEAD' },
+      { userId: projectLead.id, projectId: project1.id, role: 'PROJECT_LEAD' },
+      { userId: member.id, projectId: project1.id, role: 'PROJECT_MEMBER' },
+      { userId: projectLead.id, projectId: project2.id, role: 'PROJECT_LEAD' },
+      { userId: member.id, projectId: project2.id, role: 'PROJECT_MEMBER' },
+    ],
+    skipDuplicates: true,
+  });
+
+  // 7. Тестовые задачи для "Домашние дела"
+  await prisma.task.createMany({
+    data: [
+      {
+        id: 'task1',
+        title: 'Купить продукты',
+        description: 'Молоко, хлеб, яйца, овощи на неделю',
+        status: 'TODO',
+        priority: 'HIGH',
+        projectId: project1.id,
+        assignerId: superAdmin.id,
+        assigneeId: superAdmin.id,
+      },
+      {
+        id: 'task2',
+        title: 'Убраться в квартире',
+        description: 'Пылесос, мытьё полов, протирка пыли',
+        status: 'IN_PROGRESS',
+        priority: 'MEDIUM',
+        projectId: project1.id,
+        assignerId: superAdmin.id,
+        assigneeId: member.id,
+      },
+      {
+        id: 'task3',
+        title: 'Заплатить коммуналку',
+        description: 'Электричество, вода, интернет до 20 числа',
+        status: 'TODO',
+        priority: 'HIGH',
+        projectId: project1.id,
+        assignerId: superAdmin.id,
+        assigneeId: superAdmin.id,
+      },
+    ],
+    skipDuplicates: true,
+  });
+
+  console.log('🎉 Seed завершён!');
+  console.log('👤 Пользователи:');
+  console.log('   superadmin@w4f.com / demo123');
+  console.log('   lead@w4f.com / demo123');
+  console.log('   member@w4f.com / demo123');
+  console.log('📁 Проекты: Домашние дела, Канбан Доска v1.0');
 }
 
 main()
   .catch((e) => {
-    console.error('Ошибка:', e);
+    console.error('💥 Seed ошибка:', e);
     process.exit(1);
   })
   .finally(async () => {

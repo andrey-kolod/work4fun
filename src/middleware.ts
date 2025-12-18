@@ -32,8 +32,8 @@ export async function middleware(request: NextRequest) {
 
   if (pathname === '/') {
     if (token) {
-      console.log('✅ Авторизован на главной странице → редирект на /project-select');
-      return NextResponse.redirect(new URL('/project-select', request.url));
+      console.log('✅ Авторизован на главной странице → редирект на /projects');
+      return NextResponse.redirect(new URL('/projects', request.url));
     }
     return NextResponse.next();
   }
@@ -49,15 +49,15 @@ export async function middleware(request: NextRequest) {
     pathname === '/no-projects'
   ) {
     if (token && pathname.startsWith('/login')) {
-      console.log('✅ Уже авторизован на /login — редирект на /project-select');
-      return NextResponse.redirect(new URL('/project-select', request.url));
+      console.log('✅ Уже авторизован на /login — редирект на /projects');
+      return NextResponse.redirect(new URL('/projects', request.url));
     }
     return NextResponse.next();
   }
 
-  if (pathname.startsWith('/project-select')) {
+  if (pathname.startsWith('/projects')) {
     if (!token) {
-      console.log('❌ Нет токена на /project-select — редирект на /login');
+      console.log('❌ Нет токена на /projects — редирект на /login');
       return NextResponse.redirect(new URL('/login', request.url));
     }
     return NextResponse.next();
@@ -71,8 +71,8 @@ export async function middleware(request: NextRequest) {
 
     const selectedProjectId = request.cookies.get('selectedProjectId')?.value;
     if (!selectedProjectId && pathname === '/dashboard') {
-      console.log('[MIDDLEWARE] Нет выбранного проекта — редирект на /project-select');
-      return NextResponse.redirect(new URL('/project-select', request.url));
+      console.log('[MIDDLEWARE] Нет выбранного проекта — редирект на /projects');
+      return NextResponse.redirect(new URL('/projects', request.url));
     }
     return NextResponse.next();
   }
@@ -85,7 +85,7 @@ export async function middleware(request: NextRequest) {
   if (pathname.startsWith('/admin')) {
     if (token.role !== 'SUPER_ADMIN' && token.role !== 'PROJECT_LEAD') {
       console.log(`❌ Недостаточно прав для /admin (роль: ${token.role})`);
-      return NextResponse.redirect(new URL('/project-select', request.url));
+      return NextResponse.redirect(new URL('/projects', request.url));
     }
   }
 

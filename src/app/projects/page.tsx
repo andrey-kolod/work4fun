@@ -1,11 +1,11 @@
-// ФАЙЛ: src/app/project-select/page.tsx
-// НАЗНАЧЕНИЕ: Серверная страница выбора проекта
+// path: src/app/projects/page.tsx
+// Серверная страница выбора проекта.
 
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
-import ProjectSelectorClient from './ProjectSelectorClient';
+import ProjectClient from './ProjectsClient';
 
 export default async function ProjectSelectPage() {
   const session = await getServerSession(authOptions);
@@ -68,7 +68,7 @@ export default async function ProjectSelectPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 to-accent-50 flex items-center justify-center p-4">
-      <ProjectSelectorClient
+      <ProjectClient
         projects={projects}
         userRole={session.user.role}
         userName={

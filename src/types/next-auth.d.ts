@@ -11,6 +11,7 @@ declare module 'next-auth' {
     firstName: string;
     lastName: string;
     role: Role;
+    avatar?: string | null;
   }
 
   interface Session {
@@ -23,6 +24,8 @@ declare module 'next-auth' {
       role: Role;
       avatar?: string | null;
     };
+    accessToken?: string; // 🔥 Новый
+    error?: string; // 🔥 Новый
   }
 }
 

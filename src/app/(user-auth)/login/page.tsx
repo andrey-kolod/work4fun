@@ -78,7 +78,7 @@ export default function LoginPage() {
         setServerError('Неверный email или пароль. Попробуйте снова.');
       } else if (result?.ok) {
         console.log('✅ Успешный вход!');
-        router.push('/project-select');
+        router.push('/projects');
         router.refresh();
       }
     } catch (error) {
@@ -115,6 +115,9 @@ export default function LoginPage() {
                 error={errors.email?.message}
                 disabled={isLoading}
                 value={'superadmin@w4f.com'}
+                // value={'lead@w4f.com'}
+                // value={'lead2@w4f.com'}
+                // value={'member@w4f.com'}
               />
             </div>
 

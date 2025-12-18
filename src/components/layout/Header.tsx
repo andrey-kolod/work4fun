@@ -13,14 +13,20 @@ import { Button } from '@/components/ui/Button';
 
 const Header: React.FC = () => {
   const { data: session, status } = useSession();
-
   const router = useRouter();
   const pathname = usePathname();
-
   const { selectedProject, sidebarOpen, setSidebarOpen } = useAppStore();
 
   const [isLoading, setIsLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
+
+  // Страницы без хедера (публичные)
+  const hideHeaderPaths = ['/', '/login', '/register', '/password/reset'];
+  const shouldHideHeader = hideHeaderPaths.includes(pathname);
+
+  // Страницы без сайдбара (и соответствующих кнопок)
+  const noSidebarPaths = ['/projects', '/project-select'];
+  const showSidebarElements = !noSidebarPaths.includes(pathname);
 
   const getUserName = () => {
     if (!session?.user) return '';
@@ -50,9 +56,6 @@ const Header: React.FC = () => {
     setMounted(true);
   }, []);
 
-  const hideHeaderPaths = ['/', '/login', '/register', '/password/reset'];
-  const shouldHideHeader = hideHeaderPaths.includes(pathname);
-
   if (!mounted || status === 'loading') {
     return (
       <header className="sticky top-0 z-30 bg-white border-b border-gray-200 shadow-sm">
@@ -66,11 +69,7 @@ const Header: React.FC = () => {
     );
   }
 
-  if (shouldHideHeader) {
-    return null;
-  }
-
-  if (!session) {
+  if (shouldHideHeader || !session) {
     return null;
   }
 
@@ -109,62 +108,65 @@ const Header: React.FC = () => {
     <header className="sticky top-0 z-30 bg-white border-b border-gray-200 shadow-sm">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
+          {/* Левая часть: кнопки навигации + логотип */}
           <div className="flex items-center gap-4">
-            {/* Sidebar */}
-            <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-              aria-label="Открыть меню"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 6h16M4 12h16M4 18h16"
-                />
-              </svg>
-            </button>
+            {/* Кнопка сайдбара (только где есть сайдбар) */}
+            {showSidebarElements && (
+              <button
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                aria-label="Открыть меню"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 6h16M4 12h16M4 18h16"
+                  />
+                </svg>
+              </button>
+            )}
 
-            {/* Логотип */}
+            {/* Логотип (всегда видимый) */}
             <Link href="/tasks" className="flex items-center gap-2">
               <span className="text-xl font-bold text-purple-600">Work4Fun</span>
             </Link>
 
-            {/* Dashboard*/}
-            {selectedProject && (
-              <Button
-                onClick={goToDashboard}
-                variant={pathname.startsWith('/dashboard') ? 'primary' : 'ghost'}
-                className="hidden md:flex items-center gap-2"
-              >
-                <span>📊</span>
-                Dashboard
-              </Button>
-            )}
+            {/* Навигационные кнопки (только где есть сайдбар И выбран проект) */}
+            {showSidebarElements && selectedProject && (
+              <>
+                <Button
+                  onClick={goToDashboard}
+                  variant={pathname.startsWith('/dashboard') ? 'primary' : 'ghost'}
+                  className="hidden md:flex items-center gap-2"
+                >
+                  <span>📊</span>
+                  Dashboard
+                </Button>
 
-            {/* Канбан */}
-            {selectedProject && (
-              <Button
-                onClick={goToKanban}
-                variant={pathname.startsWith('/tasks') ? 'primary' : 'ghost'}
-                className="hidden md:flex items-center gap-2"
-              >
-                <span>✅</span>
-                Kanban
-              </Button>
+                <Button
+                  onClick={goToKanban}
+                  variant={pathname.startsWith('/tasks') ? 'primary' : 'ghost'}
+                  className="hidden md:flex items-center gap-2"
+                >
+                  <span>✅</span>
+                  Kanban
+                </Button>
+              </>
             )}
           </div>
 
+          {/* Правая часть: проект + пользователь + выход */}
           <div className="flex items-center gap-4">
-            {/* Название проекта */}
-            {selectedProject && (
+            {/* Название проекта (только если выбран) */}
+            {selectedProject && showSidebarElements && (
               <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-gray-100 rounded-full">
                 <span className="text-sm font-medium text-gray-700">{selectedProject.name}</span>
               </div>
             )}
 
-            {/* Имя и роль пользователя (скрыто на мобильных) */}
+            {/* Имя и роль пользователя */}
             <div className="hidden md:flex flex-col items-end">
               <span className="text-sm font-medium text-gray-900">{getUserName()}</span>
               <span className="text-xs text-gray-500 capitalize">
@@ -172,7 +174,7 @@ const Header: React.FC = () => {
               </span>
             </div>
 
-            {/* Аватарка / Круг с инициалом */}
+            {/* Аватар / инициалы */}
             <div className="w-8 h-8 rounded-full overflow-hidden bg-purple-100 flex items-center justify-center">
               {userAvatar ? (
                 <Image
@@ -190,7 +192,7 @@ const Header: React.FC = () => {
               )}
             </div>
 
-            {/* ВЫХОД */}
+            {/* Кнопка выхода */}
             <Button
               onClick={handleLogout}
               variant="ghost"

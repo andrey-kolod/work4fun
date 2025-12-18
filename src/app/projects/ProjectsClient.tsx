@@ -1,4 +1,4 @@
-// ФАЙЛ: src/app/project-select/ProjectSelectorClient.tsx
+// ФАЙЛ: src/app/project-select/ProjectClient.tsx
 // НАЗНАЧЕНИЕ: Клиентская часть страницы выбора проекта
 
 'use client';
@@ -6,7 +6,6 @@
 import { useState } from 'react'; // useState — храним, какой проект выбран
 import { useRouter } from 'next/navigation'; // useRouter — для перехода на /tasks
 
-// Тип проекта — как выглядит каждый проект из базы
 interface Project {
   id: number;
   name: string;
@@ -22,32 +21,24 @@ interface Project {
   };
 }
 
-// Пропсы, которые приходят с сервера
 interface ProjectSelectorProps {
   projects: Project[];
   userRole: string;
   userName: string;
 }
 
-export default function ProjectSelectorClient({
-  projects,
-  userRole,
-  userName,
-}: ProjectSelectorProps) {
-  // selectedProject — id выбранного проекта (null = ничего не выбрано)
+export default function ProjectClient({ projects, userRole, userName }: ProjectSelectorProps) {
   const [selectedProject, setSelectedProject] = useState<number | null>(
-    projects.length === 1 ? projects[0].id : null // Если 1 проект — сразу выбираем его
+    projects.length === 1 ? projects[0].id : null
   );
 
-  const [isLoading, setIsLoading] = useState(false); // true = крутится спиннер на кнопке
-  const router = useRouter(); // Для перехода на другую страницу
+  const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
 
-  // Когда нажимаем "Перейти к проекту"
   const handleProjectSelect = async () => {
-    if (!selectedProject) return; // Если ничего не выбрано — ничего не делаем
-    setIsLoading(true); // Показываем "Переход..."
+    if (!selectedProject) return;
+    setIsLoading(true);
     try {
-      // Переходим на канбан-доску с projectId в адресе
       router.push(`/tasks?projectId=${selectedProject}`);
     } catch (error) {
       console.error('Ошибка при выборе проекта:', error);
@@ -57,12 +48,10 @@ export default function ProjectSelectorClient({
     }
   };
 
-  // Кнопка "Создать новый проект" — только для супер-админа
   const handleCreateProject = () => {
     router.push('/admin/projects/create');
   };
 
-  // Функция: превращаем роль в красивый текст
   const getRoleDisplay = (role: string) => {
     switch (role) {
       case 'SUPER_ADMIN':
@@ -113,13 +102,13 @@ export default function ProjectSelectorClient({
             <div className="space-y-4 mb-6">
               {projects.map((project) => (
                 <div
-                  key={project.id} // Обязательно уникальный key
+                  key={project.id}
                   className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
                     selectedProject === project.id
-                      ? 'border-purple-500 bg-purple-50' // Выбранный — фиолетовый
-                      : 'border-gray-200 hover:border-purple-300 hover:bg-gray-50' // Наведение — подсветка
+                      ? 'border-purple-500 bg-purple-50'
+                      : 'border-gray-200 hover:border-purple-300 hover:bg-gray-50'
                   }`}
-                  onClick={() => setSelectedProject(project.id)} // Клик — выбираем проект
+                  onClick={() => setSelectedProject(project.id)}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
@@ -128,8 +117,8 @@ export default function ProjectSelectorClient({
                         <p className="text-sm text-gray-600 mt-1">{project.description}</p>
                       )}
                       <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
-                        <span>👥 {project._count.userProjects} участников</span>
-                        <span>✅ {project._count.tasks} задач</span>
+                        <span>👥 участников: {project._count?.userProjects || '–'}</span>
+                        <span>✅ задач: {project._count?.tasks || '–'}</span>
                         <span>
                           👨‍💼 Владелец: {project.owner.firstName || ''}{' '}
                           {project.owner.lastName || ''}
