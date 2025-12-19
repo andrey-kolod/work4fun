@@ -1,15 +1,6 @@
-// path: src/components/layout/ClientLayout.tsx
-// Этот файл — клиентская обёртка для всего приложения.
-// Он отвечает за:
-// - Показ хедера
-// - Показ и управление сайдбаром
-// - Отступ контента под сайдбар (только когда он реально нужен)
-// - Лоадер при смене страниц
-// - Закрытие сайдбара при клике вне его
-
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { usePathname } from 'next/navigation';
 import { ToastProvider } from '@/components/ui/Toast';
 import Header from '@/components/layout/Header';
@@ -19,57 +10,69 @@ import { useAppStore } from '@/store/useAppStore';
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const [loading, setLoading] = useState(false);
-  const prevPathRef = useRef(pathname);
   const [mounted, setMounted] = useState(false);
+  const [showLoader, setShowLoader] = useState(false);
+  const [prevPathname, setPrevPathname] = useState('');
 
   const { sidebarOpen, setSidebarOpen } = useAppStore();
 
-  // Монтирование компонента (для избежания hydration mismatch)
+  // ✅ 1. Монтирование + инициализация
   useEffect(() => {
     const animationFrameId = requestAnimationFrame(() => {
       setMounted(true);
+      setPrevPathname(pathname);
     });
     return () => cancelAnimationFrame(animationFrameId);
   }, []);
 
-  // Лоадер при смене маршрута
+  // ✅ 2. Derived state (чистый, без эффектов)
+  const isNewPath = mounted && pathname !== prevPathname;
+
+  // ✅ 3. Loader логика (ВСЕ setState в timeout callbacks)
   useEffect(() => {
-    if (pathname !== prevPathRef.current && mounted) {
-      const timer = setTimeout(() => {
-        setLoading(true);
-        const hideLoaderTimer = setTimeout(() => {
-          setLoading(false);
-          prevPathRef.current = pathname;
-        }, 300);
-        return () => clearTimeout(hideLoaderTimer);
-      }, 0);
-      return () => clearTimeout(timer);
-    } else if (mounted) {
-      prevPathRef.current = pathname;
-    }
-  }, [pathname, mounted]);
+    if (!isNewPath) return;
 
-  // === КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ ===
-  // Страницы, где НЕТ хедера и сайдбара (публичные)
-  const hideHeaderPaths = ['/', '/login', '/register', '/password/reset']; // можно добавить другие
+    // Показываем loader через setTimeout (0ms = следующий тик)
+    const showTimer = setTimeout(() => {
+      setShowLoader(true);
 
-  // Страницы, где хедер ЕСТЬ, но сайдбар ЕЩЁ НЕ НУЖЕН (промежуточные)
-  const noSidebarPaths = ['/projects', '/project-select']; // сюда добавляем выбор проекта
+      // 400ms минимум + document check
+      const hideTimer = setTimeout(() => {
+        setShowLoader(false);
+        setPrevPathname(pathname); // ✅ Обновляем prevPathname
+      }, 400);
+
+      // Проверка document.readyState
+      const checkLoad = () => {
+        if (document.readyState === 'complete') {
+          clearTimeout(hideTimer);
+          setShowLoader(false);
+          setPrevPathname(pathname);
+        }
+      };
+
+      const intervalId = setInterval(checkLoad, 50);
+
+      return () => {
+        clearTimeout(hideTimer);
+        clearInterval(intervalId);
+      };
+    }, 0);
+
+    return () => clearTimeout(showTimer);
+  }, [pathname, mounted]); // ✅ Только стабильные зависимости
+
+  const hideHeaderPaths = ['/', '/login', '/register', '/password/reset'];
+  const noSidebarPaths = ['/projects'];
 
   const showHeader = !hideHeaderPaths.includes(pathname);
-
-  // Сайдбар показываем только если хедер есть И мы НЕ на странице без сайдбара
   const showSidebar = showHeader && !noSidebarPaths.includes(pathname);
 
-  // Обработчик клика вне сайдбара (только если сайдбар открыт)
   const handleClickOutside = useCallback(
     (event: MouseEvent) => {
       if (!sidebarOpen) return;
-
       const target = event.target as HTMLElement | null;
       if (!target) return;
-
       const sidebarElement = target.closest('.app-sidebar-root');
       if (!sidebarElement) {
         setSidebarOpen(false);
@@ -89,25 +92,18 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
 
   return (
     <>
-      {/* Хедер показываем на всех авторизованных страницах */}
       {showHeader && <Header />}
-
-      {/* Сайдбар показываем только в рабочей зоне приложения */}
       {showSidebar && (
-        <div className="app-sidebar-root">
+        <div className="app-sidebar-root fixed lg:static lg:translate-x-0 z-40">
           <Sidebar />
         </div>
       )}
-
-      {/* Лоадер при навигации */}
-      {loading && <PageLoader />}
-
-      {/* Основной контент */}
+      {showLoader && <PageLoader />}
       <main
         className={`
           min-h-screen
-          transition-all duration-300
-          ${showSidebar ? 'lg:pl-64' : ''}  // Отступ ТОЛЬКО если сайдбар реально показан
+          transition-all duration-300 ease-in-out
+          ${showSidebar ? 'lg:pl-64' : 'lg:pl-0'}
         `}
       >
         <ToastProvider>{children}</ToastProvider>

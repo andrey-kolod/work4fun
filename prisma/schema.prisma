@@ -1,12 +1,14 @@
 // prisma/schema.prisma
 
-// Запуск клиента npx prisma studio
-// Применение миграций npx prisma migrate dev --name initial
-// Генерация клиента npx prisma generate
-// Пересев базы npx prisma migrate reset
-// Скрипт для заполнения БД npx prisma db seed
-
-
+// После внесения изменений:
+// # ✅ 1. Создать и применить миграцию
+// npx prisma migrate dev --name add_groups_and_roles
+//
+// # ✅ 2. Перегенерировать клиент
+// npx prisma generate
+//
+// # ✅ 3. Перезапустить сервер
+// npm run dev
 
 generator client {
   provider = "prisma-client-js"
@@ -19,11 +21,19 @@ datasource db {
 
 enum Role {
   SUPER_ADMIN
-  SYSTEM_USER 
-  PROJECT_LEAD
+  USER
+}
+
+enum ProjectRole {
+  PROJECT_OWNER
+  PROJECT_ADMIN
   PROJECT_MEMBER
 }
 
+enum GroupRole {
+  GROUP_ADMIN
+  GROUP_MEMBER
+}
 
 model User {
   id            String        @id @default(cuid())
@@ -34,21 +44,23 @@ model User {
   passwordHash  String?
   emailVerified Boolean       @default(false)
   phone         String?       @db.VarChar(20)
-  role          Role          @default(PROJECT_MEMBER)
+  role          Role          @default(USER)
   avatar        String?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
   deletedAt     DateTime?
   accounts      Account[]
-  projects      Project[]     @relation("ProjectOwner")
   sessions      Session[]
-  userProjects  UserProject[]
 
-  emailVerifyToken    String?   @unique // Токен для верификации email
-  emailVerifyTokenExp DateTime? // Срок действия токена для верификации email
+  ownedProjects       Project[]         @relation("ProjectOwner")
+  projectMemberships  ProjectMembership[]
+  groupMemberships    GroupMembership[]
 
-  tasksAssignedToMe Task[] @relation("AssignedTasks") // Задачи, где user исполнитель
-  tasksCreatedByMe  Task[] @relation("AssignedByTasks") // Задачи, где user автор
+  emailVerifyToken    String?   @unique
+  emailVerifyTokenExp DateTime?
+
+  tasksAssignedToMe Task[] @relation("AssignedTasks")
+  tasksCreatedByMe  Task[] @relation("AssignedByTasks")
 
   @@index([email])
   @@index([deletedAt])
@@ -85,16 +97,44 @@ model Session {
   @@index([expires])
 }
 
-model UserProject {
+model ProjectMembership {
+  id        String      @id @default(cuid())
   userId    String
   projectId String
-  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role      String
+  role      ProjectRole
 
-  @@id([userId, projectId])
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId])
   @@index([userId])
   @@index([projectId])
+}
+
+model Group {
+  id        String   @id @default(cuid())
+  name      String
+  projectId String
+
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks     Task[]
+  members   GroupMembership[]
+
+  @@index([projectId])
+}
+
+model GroupMembership {
+  id       String    @id @default(cuid())
+  userId   String
+  groupId  String
+  role     GroupRole
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group    Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, groupId])
+  @@index([userId])
+  @@index([groupId])
 }
 
 model Project {
@@ -107,9 +147,12 @@ model Project {
   ownerId      String
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
+
   owner        User          @relation("ProjectOwner", fields: [ownerId], references: [id])
-  userProjects UserProject[]
-  Task         Task[]
+  
+  members      ProjectMembership[]
+  groups       Group[]
+  tasks        Task[]
 }
 
 model Task {
@@ -118,18 +161,25 @@ model Task {
   description String?
   status      TaskStatus   @default(TODO)
   priority    TaskPriority @default(MEDIUM)
+  
   projectId   String
-  assigneeId  String? //TODO Уточнить можеть ли быть не назначен
-  assignerId  String
+  groupId     String?
+
+  assigneeId  String?      
+  assignerId  String       
+
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   deletedAt   DateTime?
 
-  project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  assignee User?   @relation("AssignedTasks", fields: [assigneeId], references: [id])
-  assigner User    @relation("AssignedByTasks", fields: [assignerId], references: [id])
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  group       Group?       @relation(fields: [groupId], references: [id], onDelete: SetNull)
+
+  assignee    User?        @relation("AssignedTasks", fields: [assigneeId], references: [id])
+  assigner    User         @relation("AssignedByTasks", fields: [assignerId], references: [id])
 
   @@index([projectId])
+  @@index([groupId])
   @@index([assigneeId])
   @@index([status])
   @@index([deletedAt])

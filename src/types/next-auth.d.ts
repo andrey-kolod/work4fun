@@ -1,5 +1,5 @@
 // ФАЙЛ: /src/types/next-auth.d.ts
-// НАЗНАЧЕНИЕ: Расширение типов TypeScript для NextAuth
+// Расширение типов TypeScript для NextAuth
 
 import 'next-auth';
 import { Role } from '@prisma/client';
@@ -24,8 +24,8 @@ declare module 'next-auth' {
       role: Role;
       avatar?: string | null;
     };
-    accessToken?: string; // 🔥 Новый
-    error?: string; // 🔥 Новый
+    accessToken?: string;
+    error?: string;
   }
 }
 

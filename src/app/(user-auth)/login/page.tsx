@@ -115,10 +115,10 @@ export default function LoginPage() {
                 error={errors.email?.message}
                 disabled={isLoading}
                 value={'superadmin@w4f.com'}
-                // value={'system@w4f.com'}
-                // value={'lead2@w4f.com'}
-                // value={'lead3@w4f.com'}
-                // value={'member3@w4f.com'}
+                // value={'owner1@w4f.com'}
+                // value={'owner3@w4f.com'}
+                // value={'member@w4f.com'}
+                // value={'simple-user@w4f.com'}
               />
             </div>
 

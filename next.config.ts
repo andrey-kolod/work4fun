@@ -1,4 +1,5 @@
 // next.config.js
+
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
@@ -6,7 +7,7 @@ const nextConfig: NextConfig = {
   productionBrowserSourceMaps: false,
   serverExternalPackages: ['@prisma/client', 'bcrypt'],
 
-  // УДАЛЕНИЕ console.log В ПРОДАКШЕНЕ
+  // УДАЛЕНИЕ console.log НА ПРОДЕ
   webpack: (config: any, { dev, isServer }: { dev: boolean; isServer: boolean }) => {
     if (!dev && !isServer) {
       try {
@@ -17,7 +18,7 @@ const nextConfig: NextConfig = {
           new TerserPlugin({
             terserOptions: {
               compress: {
-                drop_console: true, // ✅ УДАЛЯЕТ console.log
+                drop_console: true,
                 drop_debugger: true,
               },
             },
@@ -29,24 +30,12 @@ const nextConfig: NextConfig = {
     }
     return config;
   },
-  // ✅ Поддержка внешних изображений
+  // Поддержка внешних изображений
   images: {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: 'img.freepik.com',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'avatars.githubusercontent.com',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'lh3.googleusercontent.com',
+        hostname: 'api.dicebear.com',
         port: '',
         pathname: '/**',
       },
