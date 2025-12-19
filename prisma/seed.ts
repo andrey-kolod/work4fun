@@ -1,92 +1,129 @@
 // ФАЙЛ: prisma/seed.ts
-// Обновлён под твои требования: 5 ключевых пользователей для тестирования ролевой модели
+// Демо-данные для полного тестирования ролевой модели
 
 import { prisma } from '../src/lib/prisma';
 import { hash } from 'bcryptjs';
 import { Role, ProjectRole } from '@prisma/client';
 
 async function main() {
-  console.log('🌱 Запуск сида с 5 ключевыми пользователями...');
+  console.log('🌱 Запуск сида с полным набором тестовых пользователей...');
 
-  // 1. SUPER_ADMIN
+  // Пароль для всех — demo123
+  const passwordHash = await hash('demo123', 12);
+
+  // === ПОЛЬЗОВАТЕЛИ ===
   const superAdmin = await prisma.user.upsert({
     where: { email: 'superadmin@w4f.com' },
     update: {},
     create: {
       email: 'superadmin@w4f.com',
-      firstName: 'Супер',
-      lastName: 'Админ',
-      passwordHash: await hash('demo123', 12),
+      firstName: 'Сергей',
+      lastName: 'Админов',
+      passwordHash,
       role: Role.SUPER_ADMIN,
       emailVerified: true,
+      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=superadmin',
     },
   });
 
-  // 2. Владелец 1 проекта (Андрей)
-  const owner1 = await prisma.user.upsert({
-    where: { email: 'owner1@w4f.com' },
+  const ownerOne = await prisma.user.upsert({
+    where: { email: 'owner-one@w4f.com' },
     update: {},
     create: {
-      email: 'owner1@w4f.com',
+      email: 'owner-one@w4f.com',
       firstName: 'Андрей',
-      lastName: 'Иванов',
-      passwordHash: await hash('demo123', 12),
+      lastName: 'Петров',
+      passwordHash,
       role: Role.USER,
       emailVerified: true,
+      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=andrey',
     },
   });
 
-  // 3. Владелец 3 проектов (Мария — на лимите)
-  const owner3 = await prisma.user.upsert({
-    where: { email: 'owner3@w4f.com' },
+  const ownerThree = await prisma.user.upsert({
+    where: { email: 'owner-three@w4f.com' },
     update: {},
     create: {
-      email: 'owner3@w4f.com',
+      email: 'owner-three@w4f.com',
       firstName: 'Мария',
-      lastName: 'Смирнова',
-      passwordHash: await hash('demo123', 12),
+      lastName: 'Сидорова',
+      passwordHash,
       role: Role.USER,
       emailVerified: true,
+      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=maria',
     },
   });
 
-  // 4. Участник в 3 проектах (Елена)
-  const memberIn3 = await prisma.user.upsert({
-    where: { email: 'member@w4f.com' },
+  const ownerZero = await prisma.user.upsert({
+    where: { email: 'owner-zero@w4f.com' },
     update: {},
     create: {
-      email: 'member@w4f.com',
-      firstName: 'Елена',
-      lastName: 'Козлова',
-      passwordHash: await hash('demo123', 12),
+      email: 'owner-zero@w4f.com',
+      firstName: 'Дмитрий',
+      lastName: 'Кузнецов',
+      passwordHash,
       role: Role.USER,
       emailVerified: true,
+      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=dmitry',
     },
   });
 
-  // 5. Простой пользователь без проектов
-  const simpleUser = await prisma.user.upsert({
-    where: { email: 'simple-user@w4f.com' },
+  const memberZero = await prisma.user.upsert({
+    where: { email: 'member-zero@w4f.com' },
     update: {},
     create: {
-      email: 'simple-user@w4f.com',
-      firstName: 'Простой',
-      lastName: 'Юзер',
-      passwordHash: await hash('demo123', 12),
+      email: 'member-zero@w4f.com',
+      firstName: 'Ольга',
+      lastName: 'Новикова',
+      passwordHash,
       role: Role.USER,
       emailVerified: true,
+      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=olga',
     },
   });
 
-  // Создаём Account для NextAuth (обязательно для входа по credentials)
-  const allUsers = [superAdmin, owner1, owner3, memberIn3, simpleUser];
+  const memberOne = await prisma.user.upsert({
+    where: { email: 'member-one@w4f.com' },
+    update: {},
+    create: {
+      email: 'member-one@w4f.com',
+      firstName: 'Иван',
+      lastName: 'Морозов',
+      passwordHash,
+      role: Role.USER,
+      emailVerified: true,
+      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=ivan',
+    },
+  });
+
+  const memberThree = await prisma.user.upsert({
+    where: { email: 'member-three@w4f.com' },
+    update: {},
+    create: {
+      email: 'member-three@w4f.com',
+      firstName: 'Екатерина',
+      lastName: 'Волкова',
+      passwordHash,
+      role: Role.USER,
+      emailVerified: true,
+      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=ekaterina',
+    },
+  });
+
+  // NextAuth Account для всех
+  const allUsers = [
+    superAdmin,
+    ownerOne,
+    ownerThree,
+    ownerZero,
+    memberZero,
+    memberOne,
+    memberThree,
+  ];
   for (const user of allUsers) {
     await prisma.account.upsert({
       where: {
-        provider_providerAccountId: {
-          provider: 'credentials',
-          providerAccountId: user.id,
-        },
+        provider_providerAccountId: { provider: 'credentials', providerAccountId: user.id },
       },
       update: {},
       create: {
@@ -99,27 +136,25 @@ async function main() {
   }
 
   // === ПРОЕКТЫ ===
-  // Проект Андрея (с группами для демонстрации)
   const projAndrey = await prisma.project.upsert({
     where: { id: 'proj-andrey' },
     update: {},
     create: {
       id: 'proj-andrey',
-      name: '🏪 Интернет-магазин Андрея',
-      description: 'Один проект владельца с группами',
-      ownerId: owner1.id,
+      name: 'Интернет-магазин Андрея',
+      description: 'Основной проект с группами продаж',
+      ownerId: ownerOne.id,
       status: 'ACTIVE',
     },
   });
 
-  // 3 проекта Марии (лимит)
   const projMaria1 = await prisma.project.upsert({
     where: { id: 'proj-maria-1' },
     update: {},
     create: {
       id: 'proj-maria-1',
-      name: '💼 CRM Марии',
-      ownerId: owner3.id,
+      name: 'CRM Марии',
+      ownerId: ownerThree.id,
       status: 'ACTIVE',
     },
   });
@@ -129,8 +164,8 @@ async function main() {
     update: {},
     create: {
       id: 'proj-maria-2',
-      name: '⚙️ ERP Марии',
-      ownerId: owner3.id,
+      name: 'ERP Марии',
+      ownerId: ownerThree.id,
       status: 'ACTIVE',
     },
   });
@@ -140,8 +175,8 @@ async function main() {
     update: {},
     create: {
       id: 'proj-maria-3',
-      name: '📊 Dashboard Марии',
-      ownerId: owner3.id,
+      name: 'Дашборд Марии',
+      ownerId: ownerThree.id,
       status: 'ACTIVE',
     },
   });
@@ -150,77 +185,76 @@ async function main() {
   await prisma.projectMembership.createMany({
     data: [
       // Владельцы
-      { userId: owner1.id, projectId: projAndrey.id, role: ProjectRole.PROJECT_OWNER },
-      { userId: owner3.id, projectId: projMaria1.id, role: ProjectRole.PROJECT_OWNER },
-      { userId: owner3.id, projectId: projMaria2.id, role: ProjectRole.PROJECT_OWNER },
-      { userId: owner3.id, projectId: projMaria3.id, role: ProjectRole.PROJECT_OWNER },
+      { userId: ownerOne.id, projectId: projAndrey.id, role: ProjectRole.PROJECT_OWNER },
+      { userId: ownerThree.id, projectId: projMaria1.id, role: ProjectRole.PROJECT_OWNER },
+      { userId: ownerThree.id, projectId: projMaria2.id, role: ProjectRole.PROJECT_OWNER },
+      { userId: ownerThree.id, projectId: projMaria3.id, role: ProjectRole.PROJECT_OWNER },
 
-      // Елена — участник в 3 проектах
-      { userId: memberIn3.id, projectId: projAndrey.id, role: ProjectRole.PROJECT_MEMBER },
-      { userId: memberIn3.id, projectId: projMaria1.id, role: ProjectRole.PROJECT_MEMBER },
-      { userId: memberIn3.id, projectId: projMaria2.id, role: ProjectRole.PROJECT_MEMBER },
+      // Участники
+      { userId: memberOne.id, projectId: projAndrey.id, role: ProjectRole.PROJECT_MEMBER },
+      { userId: memberThree.id, projectId: projAndrey.id, role: ProjectRole.PROJECT_MEMBER },
+      { userId: memberThree.id, projectId: projMaria1.id, role: ProjectRole.PROJECT_MEMBER },
+      { userId: memberThree.id, projectId: projMaria2.id, role: ProjectRole.PROJECT_MEMBER },
     ],
     skipDuplicates: true,
   });
 
-  // === ГРУППЫ только в проекте Андрея (для демонстрации разделения) ===
+  // === ГРУППЫ в проекте Андрея ===
   const groups = await prisma.group.createMany({
     data: [
       { id: 'group-common', name: 'Общие', projectId: projAndrey.id },
-      { id: 'group-shop', name: 'Магазин', projectId: projAndrey.id },
+      { id: 'group-shop', name: 'Собственный магазин', projectId: projAndrey.id },
       { id: 'group-wb', name: 'Wildberries', projectId: projAndrey.id },
       { id: 'group-ozon', name: 'Ozon', projectId: projAndrey.id },
     ],
     skipDuplicates: true,
   });
 
-  // === ПРИМЕРЫ ЗАДАЧ в проекте Андрея ===
-  const groupIds = await prisma.group.findMany({
-    where: { projectId: projAndrey.id },
-    select: { id: true, name: true },
-  });
+  const groupList = await prisma.group.findMany({ where: { projectId: projAndrey.id } });
 
-  const commonGroupId = groupIds.find((g) => g.name === 'Общие')?.id;
-
+  // === ЗАДАЧИ в проекте Андрея ===
   await prisma.task.createMany({
     data: [
-      // Общая задача
       {
-        title: 'Настроить аналитику',
+        title: 'Настроить Яндекс.Метрику',
         projectId: projAndrey.id,
-        groupId: commonGroupId,
-        assignerId: owner1.id,
-      },
-      // Задачи по группам
-      {
-        title: 'Обновить баннеры',
-        projectId: projAndrey.id,
-        groupId: groupIds.find((g) => g.name === 'Магазин')?.id,
-        assignerId: owner1.id,
+        groupId: groupList.find((g) => g.name === 'Общие')?.id,
+        assignerId: ownerOne.id,
       },
       {
-        title: 'Загрузить товары на WB',
+        title: 'Обновить баннеры на сайте',
         projectId: projAndrey.id,
-        groupId: groupIds.find((g) => g.name === 'Wildberries')?.id,
-        assignerId: owner1.id,
+        groupId: groupList.find((g) => g.name === 'Собственный магазин')?.id,
+        assignerId: ownerOne.id,
+        assigneeId: memberOne.id,
       },
       {
-        title: 'Ответить на отзывы Ozon',
+        title: 'Загрузить новые товары на WB',
         projectId: projAndrey.id,
-        groupId: groupIds.find((g) => g.name === 'Ozon')?.id,
-        assignerId: owner1.id,
+        groupId: groupList.find((g) => g.name === 'Wildberries')?.id,
+        assignerId: ownerOne.id,
+        assigneeId: memberThree.id,
+      },
+      {
+        title: 'Обработать отзывы на Ozon',
+        projectId: projAndrey.id,
+        groupId: groupList.find((g) => g.name === 'Ozon')?.id,
+        assignerId: ownerOne.id,
       },
     ],
     skipDuplicates: true,
   });
 
-  console.log('🎉 Сид успешно завершён!');
-  console.log('Все пароли: demo123');
+  console.log('🎉 Демо-данные успешно созданы!');
+  console.log('🔑 Пароль для всех: demo123');
+  console.log('');
   console.log('👑 superadmin@w4f.com — Супер-админ');
-  console.log('👨‍💼 owner1@w4f.com — Владелец 1 проекта (с группами)');
-  console.log('👩‍💼 owner3@w4f.com — Владелец 3 проектов (лимит)');
-  console.log('👥 member@w4f.com — Участник в 3 проектах');
-  console.log('👤 simple-user@w4f.com — Пользователь без проектов');
+  console.log('👨 owner-one@w4f.com — Владелец 1 проекта');
+  console.log('👩 owner-three@w4f.com — Владелец 3 проектов (лимит)');
+  console.log('👨 owner-zero@w4f.com — Может создать проект (0/3)');
+  console.log('👤 member-zero@w4f.com — Без проектов');
+  console.log('👤 member-one@w4f.com — Участник в 1 проекте');
+  console.log('👥 member-three@w4f.com — Участник в 3 проектах');
 }
 
 main()

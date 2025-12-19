@@ -1,10 +1,13 @@
+// path: src/app/projects/page.tsx
+// Страница выбора проекта после входа в систему
+
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import ProjectClient from './ProjectsClient';
-import type { Project, ProjectMembership } from '@prisma/client';
 
+// Тип для проекта с добавленной ролью текущего пользователя
 type ProjectWithRole = {
   id: string;
   name: string;
@@ -25,108 +28,135 @@ export default async function ProjectSelectPage() {
   const session = await getServerSession(authOptions);
 
   if (!session || !session.user) {
+    console.log('🔒 [projects/page] Нет сессии — редирект на /login');
     redirect('/login');
   }
 
   const currentUserId = session.user.id as string;
+  const userEmail = session.user.email || 'unknown';
+  const userRole = session.user.role;
+
+  console.log(
+    `👤 [projects/page] Пользователь вошёл: ${userEmail} (ID: ${currentUserId}, роль: ${userRole})`
+  );
+
   let projects: ProjectWithRole[] = [];
 
-  if (session.user.role === 'SUPER_ADMIN') {
-    // SUPER_ADMIN видит все проекты
-    const rawProjects = await prisma.project.findMany({
-      where: { status: 'ACTIVE' },
-      include: {
-        _count: {
-          select: {
-            members: true,
-            tasks: true,
-          },
-        },
-        owner: {
-          select: {
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
-        },
-      },
-      orderBy: { name: 'asc' },
-    });
+  try {
+    if (userRole === 'SUPER_ADMIN') {
+      console.log('🔍 [projects/page] Загрузка всех проектов для SUPER_ADMIN...');
 
-    // Добавляем роль SUPER_ADMIN ко всем проектам (Prisma уже возвращает _count)
-    projects = rawProjects.map(
-      (project): ProjectWithRole => ({
+      const rawProjects = await prisma.project.findMany({
+        where: { status: 'ACTIVE' },
+        include: {
+          _count: {
+            select: {
+              members: true,
+              tasks: true,
+            },
+          },
+          owner: {
+            select: {
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
+        },
+        orderBy: { name: 'asc' },
+      });
+
+      console.log(`✅ Найдено проектов: ${rawProjects.length}`);
+
+      projects = rawProjects.map((project) => ({
         ...project,
         currentUserRole: 'SUPER_ADMIN' as const,
-      })
-    );
-  } else {
-    // Обычный пользователь — только свои проекты через ProjectMembership
-    const userMemberships = await prisma.projectMembership.findMany({
-      where: {
-        userId: currentUserId,
-        project: { status: 'ACTIVE' },
-      },
-      select: {
-        role: true,
-        project: {
-          include: {
-            _count: {
-              select: {
-                members: true,
-                tasks: true,
+      }));
+    } else {
+      console.log(`🔍 [projects/page] Загрузка проектов для пользователя ${userEmail}...`);
+
+      const userMemberships = await prisma.projectMembership.findMany({
+        where: {
+          userId: currentUserId,
+          project: { status: 'ACTIVE' },
+        },
+        select: {
+          role: true,
+          project: {
+            include: {
+              _count: {
+                select: {
+                  members: true,
+                  tasks: true,
+                },
               },
-            },
-            owner: {
-              select: {
-                firstName: true,
-                lastName: true,
-                email: true,
+              owner: {
+                select: {
+                  firstName: true,
+                  lastName: true,
+                  email: true,
+                },
               },
             },
           },
         },
-      },
-      orderBy: {
-        project: { name: 'asc' },
-      },
-    });
+        orderBy: {
+          project: { name: 'asc' },
+        },
+      });
 
-    // Формируем массив проектов с ролью (Prisma уже возвращает _count)
-    projects = userMemberships.map(
-      (membership): ProjectWithRole => ({
+      console.log(`✅ Найдено членств в проектах: ${userMemberships.length}`);
+
+      projects = userMemberships.map((membership) => ({
         ...membership.project,
         currentUserRole: membership.role,
-      })
-    );
+      }));
+    }
+  } catch (error) {
+    console.error('💥 [projects/page] ОШИБКА при загрузке проектов:', error);
+    projects = [];
   }
 
   // Автоматический редирект, если только один проект
-  if (session.user.role !== 'SUPER_ADMIN' && projects.length === 1) {
-    redirect(`/tasks?projectId=${projects[0].id}`);
+  if (userRole !== 'SUPER_ADMIN' && projects.length === 1) {
+    const projectId = projects[0].id;
+    console.log(`➡️ [projects/page] Только один проект — редирект в /tasks?projectId=${projectId}`);
+    redirect(`/tasks?projectId=${projectId}`);
   }
 
-  // Подсчёт своих проектов (где пользователь — владелец) и проверка лимита
+  // Подсчёт проектов, где пользователь — владелец
   let userOwnedProjectsCount = 0;
   let canCreateProject = true;
 
-  if (session.user.role !== 'SUPER_ADMIN') {
-    userOwnedProjectsCount = await prisma.projectMembership.count({
-      where: {
-        userId: currentUserId,
-        role: 'PROJECT_OWNER',
-        project: { status: 'ACTIVE' },
-      },
-    });
+  if (userRole !== 'SUPER_ADMIN') {
+    try {
+      userOwnedProjectsCount = await prisma.projectMembership.count({
+        where: {
+          userId: currentUserId,
+          role: 'PROJECT_OWNER',
+          project: { status: 'ACTIVE' },
+        },
+      });
 
-    canCreateProject = userOwnedProjectsCount < 3;
+      canCreateProject = userOwnedProjectsCount < 3;
+      console.log(
+        `📊 Пользователь владеет ${userOwnedProjectsCount}/3 проектами → может создать: ${canCreateProject}`
+      );
+    } catch (error) {
+      console.error('💥 Ошибка при подсчёте проектов владельца:', error);
+      canCreateProject = false;
+    }
+  } else {
+    console.log('👑 SUPER_ADMIN — может создавать проекты без ограничений');
   }
+
+  console.log(`🎯 [projects/page] Рендерим страницу с ${projects.length} проектами`);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 to-accent-50 flex items-center justify-center p-4">
       <ProjectClient
         projects={projects}
-        userRole={session.user.role as 'SUPER_ADMIN' | 'USER'}
+        userRole={userRole as 'SUPER_ADMIN' | 'USER'}
         userName={
           (session.user as any).firstName || session.user.email?.split('@')[0] || 'Пользователь'
         }
