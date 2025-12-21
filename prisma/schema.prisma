@@ -49,6 +49,7 @@ model User {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
   deletedAt     DateTime?
+  auditLogs  AuditLog[] @relation("UserAuditLogs")
   accounts      Account[]
   sessions      Session[]
 
@@ -198,4 +199,23 @@ enum TaskPriority {
   MEDIUM
   HIGH
   URGENT
+}
+
+model AuditLog {
+  id         String    @id @default(cuid())
+  userId     String
+  entityType String
+  entityId   String
+  action     String
+  details    String?   // JSON строка с деталями действия
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime  @default(now())
+
+  // ИСПРАВЛЕНО: Обратное отношение на User
+  user       User      @relation("UserAuditLogs", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
 }

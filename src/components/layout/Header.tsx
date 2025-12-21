@@ -137,21 +137,21 @@ const Header: React.FC = () => {
             {showSidebarElements && selectedProject && (
               <>
                 <Button
-                  onClick={goToDashboard}
-                  variant={pathname.startsWith('/dashboard') ? 'primary' : 'ghost'}
-                  className="hidden md:flex items-center gap-2"
-                >
-                  <span>📊</span>
-                  Dashboard
-                </Button>
-
-                <Button
                   onClick={goToKanban}
                   variant={pathname.startsWith('/tasks') ? 'primary' : 'ghost'}
                   className="hidden md:flex items-center gap-2"
                 >
                   <span>✅</span>
                   Kanban
+                </Button>
+
+                <Button
+                  onClick={goToDashboard}
+                  variant={pathname.startsWith('/dashboard') ? 'primary' : 'ghost'}
+                  className="hidden md:flex items-center gap-2"
+                >
+                  <span>📊</span>
+                  Dashboard
                 </Button>
               </>
             )}

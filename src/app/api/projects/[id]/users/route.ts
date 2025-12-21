@@ -1,45 +1,70 @@
 // src/app/api/projects/[id]/users/route.ts
+// ПОЛНОСТЬЮ ИСПРАВЛЕННЫЙ ФАЙЛ
+// Изменения:
+// - Импорт audit — default export (import audit from '@/lib/audit').
+// - Все ID — string (cuid()).
+// - prisma.projectMembership — правильная модель.
+// - Проверка прав через PermissionService (безопасность по PRD).
+// - Проверка дубликатов.
+// - Dev-логи для отладки.
+// - Для чего этот файл: Управление участниками конкретного проекта (добавление/просмотр).
+//   Используется в админке или в настройках проекта (PROJECT_OWNER/ADMIN может добавлять).
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { audit } from '@/lib/audit';
+import audit from '@/lib/audit'; // ИСПРАВЛЕНО: default import (без {})
+import { PermissionService } from '@/lib/services/permissionService';
 
-// POST /api/projects/[id]/users - Добавить пользователя в проект
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { id } = await params;
+    const { id } = await params; // projectId — string
     const session = await getServerSession(authOptions);
-    if (!session) {
+    if (!session?.user) {
       return NextResponse.json({ error: 'Не авторизован' }, { status: 401 });
     }
 
     const body = await request.json();
-    const { userId } = body;
+    const { userId } = body; // userId — string
 
     const project = await prisma.project.findUnique({
-      where: { id: parseInt(id) },
+      where: { id },
     });
 
     if (!project) {
       return NextResponse.json({ error: 'Проект не найден' }, { status: 404 });
     }
 
-    // Проверяем, что пользователь существует
     const user = await prisma.user.findUnique({
-      where: { id: parseInt(userId) },
+      where: { id: userId },
     });
 
     if (!user) {
       return NextResponse.json({ error: 'Пользователь не найден' }, { status: 404 });
     }
 
-    // Добавляем пользователя в проект
-    const userProject = await prisma.userProject.create({
+    // Проверка прав
+    const canEdit = await PermissionService.canEditProject(session.user.id, project.id);
+    if (!canEdit) {
+      return NextResponse.json({ error: 'Нет прав на добавление участников' }, { status: 403 });
+    }
+
+    // Проверка дубликатов
+    const existing = await prisma.projectMembership.findFirst({
+      where: { userId, projectId: project.id },
+    });
+
+    if (existing) {
+      return NextResponse.json({ error: 'Пользователь уже в проекте' }, { status: 400 });
+    }
+
+    // Добавляем как PROJECT_MEMBER
+    const membership = await prisma.projectMembership.create({
       data: {
-        userId: parseInt(userId),
-        projectId: parseInt(id),
+        userId,
+        projectId: project.id,
+        role: 'PROJECT_MEMBER',
       },
       include: {
         user: {
@@ -54,46 +79,46 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     });
 
     // Логируем действие
-    if (audit?.create) {
-      await audit.create(
-        parseInt(session.user.id),
-        'Project',
-        project.id,
-        {
-          userId: user.id,
-          userName: `${user.firstName} ${user.lastName}`,
-          action: 'USER_ADDED_TO_PROJECT',
-        },
-        request
+    await audit.create(
+      session.user.id,
+      'Project',
+      project.id,
+      {
+        userId,
+        userName: `${user.firstName} ${user.lastName}`,
+        action: 'USER_ADDED_TO_PROJECT',
+      },
+      request
+    );
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log(
+        `✅ [API /projects/[id]/users POST] Пользователь ${userId} добавлен в проект ${project.id}`
       );
     }
 
-    return NextResponse.json({ userProject }, { status: 201 });
+    return NextResponse.json({ membership }, { status: 201 });
   } catch (error) {
-    console.error('Error adding user to project:', error);
-    return NextResponse.json(
-      { error: 'Ошибка при добавлении пользователя в проект' },
-      { status: 500 }
-    );
+    console.error('💥 [API /projects/[id]/users POST] Ошибка:', error);
+    return NextResponse.json({ error: 'Ошибка при добавлении пользователя' }, { status: 500 });
   }
 }
 
-// GET /api/projects/[id]/users - Получить пользователей проекта
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
     const session = await getServerSession(authOptions);
-    if (!session) {
+    if (!session?.user) {
       return NextResponse.json({ error: 'Не авторизован' }, { status: 401 });
     }
 
-    const projectId = parseInt(id);
+    const canView = await PermissionService.canViewProject(session.user.id, id);
+    if (!canView) {
+      return NextResponse.json({ error: 'Нет доступа к проекту' }, { status: 403 });
+    }
 
-    // Получаем пользователей проекта через UserProject
-    const userProjects = await prisma.userProject.findMany({
-      where: {
-        projectId: projectId,
-      },
+    const memberships = await prisma.projectMembership.findMany({
+      where: { projectId: id },
       include: {
         user: {
           select: {
@@ -102,30 +127,29 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
             lastName: true,
             email: true,
             role: true,
-            isActive: true,
           },
         },
       },
     });
 
-    // Форматируем ответ для удобства использования
-    const users = userProjects.map((up) => ({
+    const users = memberships.map((m) => ({
       user: {
-        id: up.user.id,
-        firstName: up.user.firstName,
-        lastName: up.user.lastName,
-        email: up.user.email,
-        role: up.user.role,
-        isActive: up.user.isActive,
+        id: m.user.id,
+        firstName: m.user.firstName,
+        lastName: m.user.lastName,
+        email: m.user.email,
+        role: m.user.role,
+        membershipRole: m.role,
       },
     }));
 
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`✅ [API /projects/[id]/users GET] ${users.length} участников проекта ${id}`);
+    }
+
     return NextResponse.json({ users });
   } catch (error) {
-    console.error('Error fetching project users:', error);
-    return NextResponse.json(
-      { error: 'Ошибка при получении пользователей проекта' },
-      { status: 500 }
-    );
+    console.error('💥 [API /projects/[id]/users GET] Ошибка:', error);
+    return NextResponse.json({ error: 'Ошибка при получении участников' }, { status: 500 });
   }
 }

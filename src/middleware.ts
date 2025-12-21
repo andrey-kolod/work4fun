@@ -1,97 +1,234 @@
+// src/middleware.ts
+
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { getToken } from 'next-auth/jwt';
+import { prisma } from '@/lib/prisma';
+import { $Enums } from '@prisma/client';
 
 export async function middleware(request: NextRequest) {
-  const response = NextResponse.next();
   const isDev = process.env.NODE_ENV === 'development';
+  const { pathname } = request.nextUrl;
 
-  // CSP заголовки
+  // ============================================
+  // 🛡️ 1. Установка заголовков безопасности (CSP)
+  // ============================================
+  const response = NextResponse.next();
+
   response.headers.set(
     'Content-Security-Policy',
     isDev
       ? "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' ws: wss:;"
-      : "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self';"
+      : "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self';"
   );
 
-  const token = await getToken({
-    req: request,
-    secret: process.env.NEXTAUTH_SECRET,
-  });
-
-  const { pathname } = request.nextUrl;
-
-  // Логи в dev-режиме
-  if (process.env.NODE_ENV === 'development') {
-    console.log(
-      `🔍 Middleware: путь ${pathname}, авторизован: ${!!token}, роль: ${token?.role || 'нет'}`
-    );
+  // ============================================
+  // 📍 2. Логирование запроса (только dev)
+  // ============================================
+  if (isDev) {
+    console.log(`🔍 [Middleware] ${request.method} ${pathname}`);
   }
 
-  // Пути, доступные без авторизации
-  if (
-    pathname === '/' ||
-    pathname.startsWith('/login') ||
-    pathname.startsWith('/register') ||
-    pathname.startsWith('/password/reset') ||
-    pathname.startsWith('/api/auth') ||
-    pathname.startsWith('/_next') ||
-    pathname.startsWith('/public') ||
-    pathname === '/favicon.ico' ||
-    pathname === '/no-projects'
-  ) {
-    // Если уже авторизован и зашёл на /login — редирект на проекты
-    if (token && pathname === '/login') {
+  // ============================================
+  // 🆓 3. Публичные пути (без авторизации)
+  // ============================================
+  const publicPaths = [
+    '/',
+    '/login',
+    '/register',
+    '/password/reset',
+    '/api/auth',
+    '/_next',
+    '/public',
+    '/favicon.ico',
+    '/no-projects',
+    '/demo',
+    '/terms',
+    '/privacy-policy',
+  ];
+
+  const isPublicPath = publicPaths.some(
+    (path) => pathname === path || pathname.startsWith(`${path}/`)
+  );
+
+  if (isPublicPath) {
+    const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
+
+    if (token && (pathname === '/' || pathname === '/login' || pathname === '/register')) {
+      if (isDev) {
+        console.log(`↳ [Middleware] Авторизован на публичной странице — редирект на /projects`);
+      }
       return NextResponse.redirect(new URL('/projects', request.url));
     }
-    return NextResponse.next();
+
+    if (isDev) {
+      console.log(`↳ [Middleware] Публичный путь ${pathname} — пропуск`);
+    }
+    return response;
   }
 
-  // Если нет токена — на логин
-  if (!token) {
-    return NextResponse.redirect(new URL('/login', request.url));
+  // ============================================
+  // 🔐 4. Проверка авторизации
+  // ============================================
+  const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
+
+  if (!token || !token.sub) {
+    if (isDev) {
+      console.log(`↳ [Middleware] Нет токена — редирект на /login`);
+    }
+    const loginUrl = new URL('/login', request.url);
+    loginUrl.searchParams.set('callbackUrl', pathname);
+    return NextResponse.redirect(loginUrl);
   }
 
-  // Корневой путь — редирект на выбор проекта
+  const userId = token.sub as string; // String (cuid())
+  const userRole = token.role as $Enums.Role;
+
+  if (isDev) {
+    console.log(`↳ [Middleware] Пользователь ID: ${userId}, Роль: ${userRole}`);
+  }
+
+  // ============================================
+  // 🎯 5. Корневой путь (/)
+  // ============================================
   if (pathname === '/') {
-    return NextResponse.redirect(new URL('/projects', request.url));
+    try {
+      const projectCount = await prisma.projectMembership.count({
+        where: { userId },
+      });
+
+      if (isDev) {
+        console.log(`↳ [Middleware] Проектов у пользователя: ${projectCount}`);
+      }
+
+      if (projectCount === 0) {
+        if (isDev) {
+          console.log(`↳ [Middleware] Нет проектов — редирект на /no-projects`);
+        }
+        return NextResponse.redirect(new URL('/no-projects', request.url));
+      }
+
+      if (projectCount === 1) {
+        const membership = await prisma.projectMembership.findFirst({
+          where: { userId },
+          select: { projectId: true },
+        });
+
+        if (membership?.projectId) {
+          const tasksUrl = new URL('/tasks', request.url);
+          tasksUrl.searchParams.set('projectId', membership.projectId);
+          if (isDev) {
+            console.log(
+              `↳ [Middleware] Один проект — редирект в /tasks?projectId=${membership.projectId}`
+            );
+          }
+          return NextResponse.redirect(tasksUrl);
+        }
+      }
+
+      if (isDev) {
+        console.log(`↳ [Middleware] Несколько проектов — редирект на /projects`);
+      }
+      return NextResponse.redirect(new URL('/projects', request.url));
+    } catch (error) {
+      console.error('💥 [Middleware] Ошибка проверки проектов:', error);
+      return NextResponse.redirect(new URL('/projects', request.url));
+    }
   }
 
-  // Страница выбора проектов — доступна всем авторизованным
+  // ============================================
+  // 📋 6. Страница проектов (/projects*)
+  // ============================================
   if (pathname.startsWith('/projects')) {
-    return NextResponse.next();
+    if (isDev) {
+      console.log(`↳ [Middleware] Доступ к /projects разрешён (явный запрос пользователя)`);
+    }
+
+    // Проверка лимита при создании проекта
+    if (pathname === '/projects/create') {
+      if (userRole !== $Enums.Role.SUPER_ADMIN) {
+        try {
+          const ownedCount = await prisma.project.count({
+            where: { ownerId: userId },
+          });
+
+          if (ownedCount >= 3) {
+            if (isDev) {
+              console.log(`↳ [Middleware] Лимит проектов достигнут (${ownedCount}/3)`);
+            }
+            const url = new URL('/projects', request.url);
+            url.searchParams.set('error', 'project_limit_reached');
+            return NextResponse.redirect(url);
+          }
+        } catch (error) {
+          console.error('💥 [Middleware] Ошибка проверки лимита:', error);
+        }
+      }
+    }
+
+    return response;
   }
 
-  // Дашборд и задачи — проверяем, выбран ли проект (по куке)
+  // ============================================
+  // 📊 7. Дашборд и задачи
+  // ============================================
   if (pathname.startsWith('/dashboard') || pathname.startsWith('/tasks')) {
-    const selectedProjectId = request.cookies.get('selectedProjectId')?.value;
-    if (!selectedProjectId && pathname === '/dashboard') {
+    const projectId = request.nextUrl.searchParams.get('projectId');
+
+    if (!projectId) {
+      if (isDev) {
+        console.log(`↳ [Middleware] Нет projectId — редирект на /projects`);
+      }
       return NextResponse.redirect(new URL('/projects', request.url));
     }
-    return NextResponse.next();
+
+    if (userRole !== $Enums.Role.SUPER_ADMIN) {
+      const hasAccess = await prisma.projectMembership.findFirst({
+        where: { userId, projectId },
+      });
+
+      if (!hasAccess) {
+        if (isDev) {
+          console.log(`↳ [Middleware] Нет доступа к проекту ${projectId}`);
+        }
+        return NextResponse.redirect(new URL('/projects', request.url));
+      }
+    }
+
+    return response;
   }
 
-  // Админка (/admin и /admin/projects/create) — только для SUPER_ADMIN
+  // ============================================
+  // 👑 8. Админка
+  // ============================================
   if (pathname.startsWith('/admin')) {
-    if (token.role !== 'SUPER_ADMIN') {
-      console.log(`❌ Недостаточно прав для /admin (роль: ${token.role})`);
+    if (userRole !== $Enums.Role.SUPER_ADMIN) {
+      if (isDev) {
+        console.log(`❌ [Middleware] Доступ к админке запрещён (роль: ${userRole})`);
+      }
       return NextResponse.redirect(new URL('/projects', request.url));
     }
-    return NextResponse.next();
+    return response;
   }
 
-  // API админки — только SUPER_ADMIN
+  // ============================================
+  // 🔌 9. API админки
+  // ============================================
   if (pathname.startsWith('/api/admin')) {
-    if (token.role !== 'SUPER_ADMIN') {
+    if (userRole !== $Enums.Role.SUPER_ADMIN) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
-    return NextResponse.next();
+    return response;
   }
 
-  // Всё остальное — пропускаем
-  return NextResponse.next();
+  // ============================================
+  // ✅ 10. Всё остальное
+  // ============================================
+  return response;
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico|public|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
+  ],
 };

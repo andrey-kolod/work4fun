@@ -32,7 +32,7 @@ const Sidebar: React.FC = () => {
     },
     {
       name: 'Проекты',
-      href: '/project-select',
+      href: '/projects',
       icon: '📁',
       visible: true,
     },

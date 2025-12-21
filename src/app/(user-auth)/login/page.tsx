@@ -1,184 +1,25 @@
-// // ФАЙЛ: src/app/(user-auth)/login/page.tsx
-// // НАЗНАЧЕНИЕ: Страница входа в систему (/login)
-
-// 'use client';
-
-// import { useState, useRef } from 'react';
-// import { signIn } from 'next-auth/react';
-// import { useRouter } from 'next/navigation';
-// import { useForm } from 'react-hook-form';
-// import { zodResolver } from '@hookform/resolvers/zod';
-// import Link from 'next/link';
-// import { Eye, EyeOff } from 'lucide-react';
-// import ReCAPTCHA from 'react-google-recaptcha';
-// import { loginSchema } from '@/lib/validations/auth';
-// import type { LoginInput } from '@/lib/validations/auth';
-// import { Button } from '@/components/ui/Button';
-// import { Input } from '@/components/ui/Input';
-// import { Label } from '@/components/ui/Label';
-// import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
-// import { Checkbox } from '@/components/ui/Checkbox';
-
-// export default function LoginPage() {
-//   const router = useRouter();
-//   const recaptchaRef = useRef<ReCAPTCHA>(null);
-
-//   const [isLoading, setIsLoading] = useState(false);
-//   const [serverError, setServerError] = useState('');
-//   const [showPassword, setShowPassword] = useState(false);
-//   const [rememberMe, setRememberMe] = useState(false);
-
-//   const {
-//     register,
-//     handleSubmit,
-//     formState: { errors },
-//   } = useForm<LoginInput>({
-//     resolver: zodResolver(loginSchema),
-//   });
-
-//   const onSubmit = async (data: LoginInput) => {
-//     console.log('🔐 Попытка входа:', data.email);
-
-//     setIsLoading(true);
-//     setServerError('');
-
-//     try {
-//       const recaptchaToken = await recaptchaRef.current?.executeAsync();
-//       recaptchaRef.current?.reset();
-
-//       if (!recaptchaToken) {
-//         setServerError('Не удалось пройти проверку reCAPTCHA');
-//         setIsLoading(false);
-//         return;
-//       }
-
-//       const verifyRes = await fetch('/api/auth/recaptcha', {
-//         method: 'POST',
-//         headers: { 'Content-Type': 'application/json' },
-//         body: JSON.stringify({ token: recaptchaToken }),
-//       });
-
-//       const verifyData = await verifyRes.json();
-
-//       if (!verifyData.success || verifyData.score < 0.5) {
-//         console.warn('reCAPTCHA: подозрительный пользователь, score:', verifyData.score);
-//         setServerError('Проверка не пройдена. Попробуйте позже.');
-//         setIsLoading(false);
-//         return;
-//       }
-
-//       const result = await signIn('credentials', {
-//         email: data.email,
-//         password: data.password,
-//         redirect: false,
-//       });
-
-//       if (result?.error) {
-//         console.error('❌ Ошибка входа:', result.error);
-//         setServerError('Неверный email или пароль. Попробуйте снова.');
-//       } else if (result?.ok) {
-//         console.log('✅ Успешный вход!');
-//         router.push('/projects');
-//         router.refresh();
-//       }
-//     } catch (error) {
-//       console.error('Ошибка при проверке reCAPTCHA:', error);
-//       setServerError('Произошла ошибка. Попробуйте позже.');
-//     } finally {
-//       setIsLoading(false);
-//     }
-//   };
-
-//   return (
-//     <div className="w-full max-w-md mx-auto">
-//       <Card>
-//         <CardHeader className="text-center">
-//           <CardTitle className="text-2xl">Вход в систему</CardTitle>
-//           <p className="text-text-secondary">Введите email и пароль</p>
-//         </CardHeader>
-//         <CardContent>
-//           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-//             {serverError && (
-//               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded text-center">
-//                 {serverError}
-//               </div>
-//             )}
-
-//             {/* Электронная почта */}
-//             <div className="space-y-2">
-//               <Label htmlFor="email">Электронная почта</Label>
-//               <Input
-//                 id="email"
-//                 type="email"
-//                 placeholder="your@email.com"
-//                 {...register('email')}
-//                 error={errors.email?.message}
-//                 disabled={isLoading}
-//               />
-//             </div>
-
-//             {/* Пароль */}
-//             <div className="space-y-2">
-//               <Label htmlFor="password">Пароль</Label>
-//               <div className="relative">
-//                 <Input
-//                   id="password"
-//                   type={showPassword ? 'text' : 'password'}
-//                   placeholder="••••••••"
-//                   {...register('password')}
-//                   error={errors.password?.message}
-//                   disabled={isLoading}
-//                   value={'demo123'}
-//                 />
-//                 <button
-//                   type="button"
-//                   onClick={() => setShowPassword(!showPassword)}
-//                   className="absolute right-3 top-3 text-gray-500 hover:text-gray-700"
-//                 >
-//                   {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-//                 </button>
-//               </div>
-//             </div>
-
-//             {/* Запомнить меня */}
-//             <div className="flex items-center justify-between">
-//               <label className="flex items-center space-x-2 cursor-pointer">
-//                 <Checkbox
-//                   checked={rememberMe}
-//                   onCheckedChange={(checked) => setRememberMe(checked as boolean)}
-//                   disabled={isLoading}
-//                 />
-//                 <span className="text-sm">Запомнить меня</span>
-//               </label>
-
-//               {/* Забыли пароль */}
-//               <Link href="/password/reset" className="text-sm text-primary hover:underline">
-//                 Забыли пароль?
-//               </Link>
-//             </div>
-
-//             {/* reCAPTCHA */}
-//             <ReCAPTCHA
-//               sitekey={process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY!}
-//               size="invisible"
-//               ref={recaptchaRef}
-//             />
-
-//             <div className="flex justify-center pt-4">
-//               <Button type="submit" className="px-12" loading={isLoading}>
-//                 Войти
-//               </Button>
-//             </div>
-//           </form>
-//         </CardContent>
-//       </Card>
-//     </div>
-//   );
-// }
-
-// ФАЙЛ: src/app/(user-auth)/login/page.tsx
-// НАЗНАЧЕНИЕ: Страница входа в систему (/login)
-// Добавлена удобная подсказка с демо-аккаунтами для быстрого тестирования
+// src/app/(user-auth)/login/page.tsx
+// ПОЛНОСТЬЮ ИСПРАВЛЕННЫЙ ФАЙЛ
+// Почему исправлен (объяснение как новичку):
+// 1. Проблема: После успешного логина пользователь с 1 проектом попадал на /projects (страница выбора проектов), а не сразу в задачи.
+//    По PRD (раздел 3.1.6 "Выбор проекта"): Если у пользователя 1 проект — после логина сразу в задачи (удобно для обычных пользователей).
+//    Если >1 — выбор проекта.
+//    SUPER_ADMIN — всегда выбор (видит все).
+// 2. Решение: После успешного signIn редиректим на /projects?fromLogin=true.
+//    В /projects/page.tsx проверяем этот param — если есть и 1 проект — редирект в /tasks?projectId=...
+//    Если param нет (ручной переход из сайдбара) — показываем список проектов.
+//    Это лучшая практика продакшена: query param для "контекста перехода" (fromLogin) — просто, без куки/localStorage (ненадёжно в приватном режиме).
+//    Безопасно: param публичный, не содержит данных.
+//    UX: После логина — сразу в задачи (если 1 проект).
+//    Ручной переход на /projects — всегда список (можно создать новый проект).
+// 3. Добавлены dev-логи (process.env.NODE_ENV === 'development') — для отладки редиректа, в проде тихо.
+// 4. Для чего этот файл: Клиентский компонент страницы логина (/login).
+//    - Форма входа с валидацией (react-hook-form + zod).
+//    - reCAPTCHA для защиты от ботов.
+//    - Демо-аккаунты для тестирования (удобно в dev).
+//    - После входа — редирект в /projects?fromLogin=true (активирует авто-выбор проекта).
+//    - Использует next-auth/signIn — безопасная аутентификация.
+//    - Лучшая практика: Все проверки на клиенте (валидация), критичные — на сервере (next-auth).
 
 'use client';
 
@@ -199,20 +40,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Checkbox } from '@/components/ui/Checkbox';
 
 export default function LoginPage() {
-  // Хук для навигации после успешного входа
   const router = useRouter();
-
-  // Ссылка на невидимую reCAPTCHA
   const recaptchaRef = useRef<ReCAPTCHA>(null);
 
-  // Состояния компонента
-  const [isLoading, setIsLoading] = useState(false); // Показ кнопки загрузки
-  const [serverError, setServerError] = useState(''); // Ошибка от сервера
-  const [showPassword, setShowPassword] = useState(false); // Показать/скрыть пароль
-  const [rememberMe, setRememberMe] = useState(false); // Чекбокс "Запомнить меня"
-  const [copiedEmail, setCopiedEmail] = useState(''); // Какой email только что скопировали
+  const [isLoading, setIsLoading] = useState(false);
+  const [serverError, setServerError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+  const [copiedEmail, setCopiedEmail] = useState('');
 
-  // Форма с валидацией через react-hook-form + zod
   const {
     register,
     handleSubmit,
@@ -221,22 +57,21 @@ export default function LoginPage() {
     resolver: zodResolver(loginSchema),
   });
 
-  // Функция копирования email в буфер обмена
   const copyToClipboard = (email: string) => {
     navigator.clipboard.writeText(email);
     setCopiedEmail(email);
-    setTimeout(() => setCopiedEmail(''), 2000); // Сообщение исчезает через 2 секунды
+    setTimeout(() => setCopiedEmail(''), 2000);
   };
 
-  // Обработчик отправки формы
   const onSubmit = async (data: LoginInput) => {
-    console.log('🔐 Попытка входа:', data.email);
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔐 [LoginPage] Попытка входа:', data.email);
+    }
 
     setIsLoading(true);
     setServerError('');
 
     try {
-      // Выполняем невидимую reCAPTCHA
       const recaptchaToken = await recaptchaRef.current?.executeAsync();
       recaptchaRef.current?.reset();
 
@@ -246,7 +81,6 @@ export default function LoginPage() {
         return;
       }
 
-      // Проверяем токен на сервере
       const verifyRes = await fetch('/api/auth/recaptcha', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -256,13 +90,14 @@ export default function LoginPage() {
       const verifyData = await verifyRes.json();
 
       if (!verifyData.success || verifyData.score < 0.5) {
-        console.warn('reCAPTCHA: подозрительный пользователь, score:', verifyData.score);
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('reCAPTCHA: подозрительный пользователь, score:', verifyData.score);
+        }
         setServerError('Проверка не пройдена. Попробуйте позже.');
         setIsLoading(false);
         return;
       }
 
-      // Выполняем вход через NextAuth
       const result = await signIn('credentials', {
         email: data.email,
         password: data.password,
@@ -270,15 +105,24 @@ export default function LoginPage() {
       });
 
       if (result?.error) {
-        console.error('❌ Ошибка входа:', result.error);
+        if (process.env.NODE_ENV === 'development') {
+          console.error('❌ [LoginPage] Ошибка входа:', result.error);
+        }
         setServerError('Неверный email или пароль. Попробуйте снова.');
       } else if (result?.ok) {
-        console.log('✅ Успешный вход!');
-        router.push('/projects'); // Переходим на страницу выбора проекта
-        router.refresh(); // Обновляем серверные данные
+        if (process.env.NODE_ENV === 'development') {
+          console.log('✅ [LoginPage] Успешный вход!');
+        }
+
+        // ИСПРАВЛЕНИЕ: После логина редирект на /projects с флагом fromLogin=true
+        // Это активирует авто-редирект в задачи (если 1 проект) в /projects/page.tsx
+        router.push('/projects?fromLogin=true');
+        router.refresh();
       }
     } catch (error) {
-      console.error('Ошибка при проверке reCAPTCHA:', error);
+      if (process.env.NODE_ENV === 'development') {
+        console.error('💥 [LoginPage] Ошибка при входе:', error);
+      }
       setServerError('Произошла ошибка. Попробуйте позже.');
     } finally {
       setIsLoading(false);
@@ -287,7 +131,7 @@ export default function LoginPage() {
 
   return (
     <div className="w-full max-w-md mx-auto space-y-8">
-      {/* Подсказка с демо-аккаунтами — только для разработки */}
+      {/* Демо-аккаунты — только для разработки */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm">
         <p className="font-semibold text-blue-900 mb-3">
           🔑 Демо-аккаунты (пароль для всех:{' '}
@@ -366,7 +210,7 @@ export default function LoginPage() {
         )}
       </div>
 
-      {/* Основная форма входа */}
+      {/* Форма входа */}
       <Card>
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">Вход в систему</CardTitle>
@@ -374,14 +218,12 @@ export default function LoginPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-            {/* Сообщение об ошибке от сервера */}
             {serverError && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded text-center">
                 {serverError}
               </div>
             )}
 
-            {/* Поле электронной почты */}
             <div className="space-y-2">
               <Label htmlFor="email">Электронная почта</Label>
               <Input
@@ -394,7 +236,6 @@ export default function LoginPage() {
               />
             </div>
 
-            {/* Поле пароля */}
             <div className="space-y-2">
               <Label htmlFor="password">Пароль</Label>
               <div className="relative">
@@ -405,7 +246,6 @@ export default function LoginPage() {
                   {...register('password')}
                   error={errors.password?.message}
                   disabled={isLoading}
-                  // Для удобства тестирования подставляем пароль из демо-данных
                   value={'demo123'}
                 />
                 <button
@@ -418,7 +258,6 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* Чекбокс "Запомнить меня" и ссылка на восстановление пароля */}
             <div className="flex items-center justify-between">
               <label className="flex items-center space-x-2 cursor-pointer">
                 <Checkbox
@@ -434,14 +273,12 @@ export default function LoginPage() {
               </Link>
             </div>
 
-            {/* Невидимая reCAPTCHA */}
             <ReCAPTCHA
               sitekey={process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY!}
               size="invisible"
               ref={recaptchaRef}
             />
 
-            {/* Кнопка входа */}
             <div className="flex justify-center pt-4">
               <Button type="submit" className="px-12" loading={isLoading}>
                 Войти
