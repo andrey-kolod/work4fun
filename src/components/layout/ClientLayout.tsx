@@ -1,6 +1,8 @@
+// src/components/layout/ClientLayout.tsx
+
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { ToastProvider } from '@/components/ui/Toast';
 import Header from '@/components/layout/Header';
@@ -13,10 +15,10 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   const [mounted, setMounted] = useState(false);
   const [showLoader, setShowLoader] = useState(false);
   const [prevPathname, setPrevPathname] = useState('');
-
   const { sidebarOpen, setSidebarOpen } = useAppStore();
 
-  // ✅ 1. Монтирование + инициализация
+  const sidebarRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     const animationFrameId = requestAnimationFrame(() => {
       setMounted(true);
@@ -25,24 +27,19 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     return () => cancelAnimationFrame(animationFrameId);
   }, []);
 
-  // ✅ 2. Derived state (чистый, без эффектов)
   const isNewPath = mounted && pathname !== prevPathname;
 
-  // ✅ 3. Loader логика (ВСЕ setState в timeout callbacks)
   useEffect(() => {
     if (!isNewPath) return;
 
-    // Показываем loader через setTimeout (0ms = следующий тик)
     const showTimer = setTimeout(() => {
       setShowLoader(true);
 
-      // 400ms минимум + document check
       const hideTimer = setTimeout(() => {
         setShowLoader(false);
-        setPrevPathname(pathname); // ✅ Обновляем prevPathname
+        setPrevPathname(pathname);
       }, 400);
 
-      // Проверка document.readyState
       const checkLoad = () => {
         if (document.readyState === 'complete') {
           clearTimeout(hideTimer);
@@ -60,7 +57,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     }, 0);
 
     return () => clearTimeout(showTimer);
-  }, [pathname, mounted]); // ✅ Только стабильные зависимости
+  }, [pathname, mounted]);
 
   const hideHeaderPaths = ['/', '/login', '/register', '/password/reset'];
   const noSidebarPaths = ['/projects'];
@@ -86,6 +83,15 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [handleClickOutside]);
 
+  useEffect(() => {
+    if (sidebarOpen && sidebarRef.current) {
+      sidebarRef.current.focus();
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🔍 [ClientLayout] Sidebar открыт — фокус установлен');
+      }
+    }
+  }, [sidebarOpen]);
+
   if (!mounted) {
     return null;
   }
@@ -93,18 +99,29 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   return (
     <>
       {showHeader && <Header />}
+
       {showSidebar && (
-        <div className="app-sidebar-root fixed lg:static lg:translate-x-0 z-40">
+        <div
+          className="app-sidebar-root fixed lg:static lg:translate-x-0 z-40"
+          aria-hidden={!sidebarOpen}
+          role="complementary"
+          ref={sidebarRef}
+          tabIndex={-1}
+        >
           <Sidebar />
         </div>
       )}
-      {showLoader && <PageLoader />}
+
+      {showLoader && <PageLoader aria-live="polite" aria-label="Загрузка страницы" />}
+
       <main
         className={`
           min-h-screen
           transition-all duration-300 ease-in-out
           ${showSidebar ? 'lg:pl-64' : 'lg:pl-0'}
         `}
+        role="main"
+        aria-label="Основное содержимое"
       >
         <ToastProvider>{children}</ToastProvider>
       </main>

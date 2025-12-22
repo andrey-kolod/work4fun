@@ -1,22 +1,4 @@
 // src/app/projects/page.tsx
-// ПОЛНОСТЬЮ ИСПРАВЛЕННЫЙ ФАЙЛ
-// Почему была ошибка (объяснение как новичку):
-// 1. В Next.js App Router (твоя версия) searchParams — это **Promise** (асинхронный объект).
-//    Нельзя писать searchParams.fromLogin напрямую — нужно await searchParams.
-//    Ошибка: "searchParams is a Promise and must be unwrapped with `await`".
-//    Это новая фича Next.js 15+ — searchParams асинхронный для лучшей производительности (можно загружать параллельно).
-// 2. Решение: Добавляем await перед searchParams (async function уже есть).
-//    const { fromLogin } = await searchParams;
-//    Теперь fromLogin — string | undefined.
-// 3. Для чего этот файл: Серверный компонент страницы выбора проектов (/projects).
-//    Загружает доступные проекты напрямую из Prisma (без API — быстрее и безопасно).
-//    Рендерит клиентский ProjectClient с данными.
-//    По PRD: Авто-редирект после логина при 1 проекте (fromLogin=true); ручной переход — всегда список.
-// 4. Лучшая практика продакшена:
-//    - searchParams — await (асинхронно) — стандарт Next.js 15+.
-//    - Dev-логи: process.env.NODE_ENV === 'development' — в проде тихо.
-//    - Безопасно: Нет утечек данных (Prisma на сервере).
-//    - UX: Авто-редирект после логина, свобода навигации в системе.
 
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
@@ -24,7 +6,6 @@ import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import ProjectClient from './ProjectsClient';
 
-// Тип проекта с ролью пользователя в проекте
 type ProjectWithRole = {
   id: string;
   name: string;
@@ -44,7 +25,7 @@ type ProjectWithRole = {
 export default async function ProjectSelectPage({
   searchParams,
 }: {
-  searchParams: Promise<{ fromLogin?: string }>; // ИСПРАВЛЕНО: searchParams — Promise
+  searchParams: Promise<{ fromLogin?: string }>;
 }) {
   const session = await getServerSession(authOptions);
 
@@ -126,7 +107,6 @@ export default async function ProjectSelectPage({
     projects = [];
   }
 
-  // ИСПРАВЛЕНИЕ: await searchParams (Promise) — теперь fromLogin доступен
   const resolvedSearchParams = await searchParams;
   const fromLogin = resolvedSearchParams.fromLogin === 'true';
 
@@ -134,7 +114,6 @@ export default async function ProjectSelectPage({
     console.log(`🔍 [projects/page] fromLogin: ${fromLogin}`);
   }
 
-  // Авто-редирект при 1 проекте ТОЛЬКО если fromLogin=true (после логина)
   if (userRole !== 'SUPER_ADMIN' && projects.length === 1 && fromLogin) {
     const projectId = projects[0].id;
     if (process.env.NODE_ENV === 'development') {
@@ -145,7 +124,6 @@ export default async function ProjectSelectPage({
     redirect(`/tasks?projectId=${projectId}`);
   }
 
-  // Подсчёт проектов, где пользователь — владелец (для кнопки создания)
   let userOwnedProjectsCount = 0;
   let canCreateProject = true;
 
@@ -176,7 +154,11 @@ export default async function ProjectSelectPage({
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 to-accent-50 flex items-center justify-center p-4">
+    <div
+      className="min-h-screen bg-gradient-to-br from-primary-50 to-accent-50 flex items-center justify-center p-4"
+      role="main"
+      aria-label="Страница выбора проектов"
+    >
       <ProjectClient
         projects={projects}
         userRole={userRole as 'SUPER_ADMIN' | 'USER'}

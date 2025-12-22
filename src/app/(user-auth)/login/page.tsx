@@ -1,25 +1,4 @@
 // src/app/(user-auth)/login/page.tsx
-// ПОЛНОСТЬЮ ИСПРАВЛЕННЫЙ ФАЙЛ
-// Почему исправлен (объяснение как новичку):
-// 1. Проблема: После успешного логина пользователь с 1 проектом попадал на /projects (страница выбора проектов), а не сразу в задачи.
-//    По PRD (раздел 3.1.6 "Выбор проекта"): Если у пользователя 1 проект — после логина сразу в задачи (удобно для обычных пользователей).
-//    Если >1 — выбор проекта.
-//    SUPER_ADMIN — всегда выбор (видит все).
-// 2. Решение: После успешного signIn редиректим на /projects?fromLogin=true.
-//    В /projects/page.tsx проверяем этот param — если есть и 1 проект — редирект в /tasks?projectId=...
-//    Если param нет (ручной переход из сайдбара) — показываем список проектов.
-//    Это лучшая практика продакшена: query param для "контекста перехода" (fromLogin) — просто, без куки/localStorage (ненадёжно в приватном режиме).
-//    Безопасно: param публичный, не содержит данных.
-//    UX: После логина — сразу в задачи (если 1 проект).
-//    Ручной переход на /projects — всегда список (можно создать новый проект).
-// 3. Добавлены dev-логи (process.env.NODE_ENV === 'development') — для отладки редиректа, в проде тихо.
-// 4. Для чего этот файл: Клиентский компонент страницы логина (/login).
-//    - Форма входа с валидацией (react-hook-form + zod).
-//    - reCAPTCHA для защиты от ботов.
-//    - Демо-аккаунты для тестирования (удобно в dev).
-//    - После входа — редирект в /projects?fromLogin=true (активирует авто-выбор проекта).
-//    - Использует next-auth/signIn — безопасная аутентификация.
-//    - Лучшая практика: Все проверки на клиенте (валидация), критичные — на сервере (next-auth).
 
 'use client';
 
@@ -77,6 +56,9 @@ export default function LoginPage() {
 
       if (!recaptchaToken) {
         setServerError('Не удалось пройти проверку reCAPTCHA');
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('reCAPTCHA: токен не получен');
+        }
         setIsLoading(false);
         return;
       }
@@ -93,7 +75,7 @@ export default function LoginPage() {
         if (process.env.NODE_ENV === 'development') {
           console.warn('reCAPTCHA: подозрительный пользователь, score:', verifyData.score);
         }
-        setServerError('Проверка не пройдена. Попробуйте позже.');
+        setServerError('Проверка reCAPTCHA не пройдена. Попробуйте позже.');
         setIsLoading(false);
         return;
       }
@@ -111,11 +93,9 @@ export default function LoginPage() {
         setServerError('Неверный email или пароль. Попробуйте снова.');
       } else if (result?.ok) {
         if (process.env.NODE_ENV === 'development') {
-          console.log('✅ [LoginPage] Успешный вход!');
+          console.log('✅ [LoginPage] Успешный вход! Редирект с fromLogin=true');
         }
 
-        // ИСПРАВЛЕНИЕ: После логина редирект на /projects с флагом fromLogin=true
-        // Это активирует авто-редирект в задачи (если 1 проект) в /projects/page.tsx
         router.push('/projects?fromLogin=true');
         router.refresh();
       }
@@ -131,7 +111,7 @@ export default function LoginPage() {
 
   return (
     <div className="w-full max-w-md mx-auto space-y-8">
-      {/* Демо-аккаунты — только для разработки */}
+      {/* Демо-аккаунты */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm">
         <p className="font-semibold text-blue-900 mb-3">
           🔑 Демо-аккаунты (пароль для всех:{' '}
@@ -144,6 +124,7 @@ export default function LoginPage() {
               onClick={() => copyToClipboard('superadmin@w4f.com')}
               className="ml-2 text-blue-600 hover:text-blue-800 transition"
               title="Скопировать email"
+              aria-label="Скопировать email superadmin@w4f.com"
             >
               <Copy size={16} />
             </button>
@@ -153,6 +134,7 @@ export default function LoginPage() {
             <button
               onClick={() => copyToClipboard('owner-one@w4f.com')}
               className="ml-2 text-blue-600 hover:text-blue-800 transition"
+              aria-label="Скопировать email owner-one@w4f.com"
             >
               <Copy size={16} />
             </button>
@@ -162,6 +144,7 @@ export default function LoginPage() {
             <button
               onClick={() => copyToClipboard('owner-three@w4f.com')}
               className="ml-2 text-blue-600 hover:text-blue-800 transition"
+              aria-label="Скопировать email owner-three@w4f.com"
             >
               <Copy size={16} />
             </button>
@@ -171,6 +154,7 @@ export default function LoginPage() {
             <button
               onClick={() => copyToClipboard('owner-zero@w4f.com')}
               className="ml-2 text-blue-600 hover:text-blue-800 transition"
+              aria-label="Скопировать email owner-zero@w4f.com"
             >
               <Copy size={16} />
             </button>
@@ -180,6 +164,7 @@ export default function LoginPage() {
             <button
               onClick={() => copyToClipboard('member-zero@w4f.com')}
               className="ml-2 text-blue-600 hover:text-blue-800 transition"
+              aria-label="Скопировать email member-zero@w4f.com"
             >
               <Copy size={16} />
             </button>
@@ -189,6 +174,7 @@ export default function LoginPage() {
             <button
               onClick={() => copyToClipboard('member-one@w4f.com')}
               className="ml-2 text-blue-600 hover:text-blue-800 transition"
+              aria-label="Скопировать email member-one@w4f.com"
             >
               <Copy size={16} />
             </button>
@@ -198,19 +184,17 @@ export default function LoginPage() {
             <button
               onClick={() => copyToClipboard('member-three@w4f.com')}
               className="ml-2 text-blue-600 hover:text-blue-800 transition"
+              aria-label="Скопировать email member-three@w4f.com"
             >
               <Copy size={16} />
             </button>
           </li>
         </ul>
         {copiedEmail && (
-          <p className="text-green-600 text-xs mt-3 animate-pulse">
-            ✓ {copiedEmail} скопирован в буфер обмена!
-          </p>
+          <p className="text-green-600 text-xs mt-3 animate-pulse">✓ {copiedEmail} скопирован!</p>
         )}
       </div>
 
-      {/* Форма входа */}
       <Card>
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">Вход в систему</CardTitle>
@@ -233,6 +217,7 @@ export default function LoginPage() {
                 {...register('email')}
                 error={errors.email?.message}
                 disabled={isLoading}
+                aria-label="Введите email"
               />
             </div>
 
@@ -247,11 +232,13 @@ export default function LoginPage() {
                   error={errors.password?.message}
                   disabled={isLoading}
                   value={'demo123'}
+                  aria-label="Введите пароль"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-3 text-gray-500 hover:text-gray-700 transition"
+                  aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
                 >
                   {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
@@ -264,15 +251,21 @@ export default function LoginPage() {
                   checked={rememberMe}
                   onCheckedChange={(checked) => setRememberMe(checked as boolean)}
                   disabled={isLoading}
+                  aria-label="Запомнить меня"
                 />
                 <span className="text-sm">Запомнить меня</span>
               </label>
 
-              <Link href="/password/reset" className="text-sm text-primary hover:underline">
+              <Link
+                href="/password/reset"
+                className="text-sm text-primary hover:underline"
+                aria-label="Забыли пароль?"
+              >
                 Забыли пароль?
               </Link>
             </div>
 
+            {/* reCAPTCHA */}
             <ReCAPTCHA
               sitekey={process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY!}
               size="invisible"
@@ -280,7 +273,12 @@ export default function LoginPage() {
             />
 
             <div className="flex justify-center pt-4">
-              <Button type="submit" className="px-12" loading={isLoading}>
+              <Button
+                type="submit"
+                className="px-12"
+                loading={isLoading}
+                aria-label="Войти в систему"
+              >
                 Войти
               </Button>
             </div>

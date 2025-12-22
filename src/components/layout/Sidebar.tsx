@@ -1,4 +1,5 @@
 // src/components/layout/Sidebar.tsx
+
 'use client';
 
 import React from 'react';
@@ -23,43 +24,49 @@ const Sidebar: React.FC = () => {
       href: '/dashboard',
       icon: '📊',
       visible: true,
+      ariaLabel: 'Перейти в Dashboard',
     },
     {
       name: 'Задачи',
       href: selectedProject ? `/tasks?projectId=${selectedProject.id}` : '/tasks',
       icon: '✅',
       visible: true,
+      ariaLabel: 'Перейти в задачи',
     },
     {
       name: 'Проекты',
       href: '/projects',
       icon: '📁',
       visible: true,
+      ariaLabel: 'Перейти в список проектов',
     },
     {
       name: 'Группы',
       href: '/admin/groups',
       icon: '👥',
       visible: isAdmin,
+      ariaLabel: 'Перейти в группы (админ)',
     },
     {
       name: 'Пользователи',
       href: '/admin/users',
       icon: '👤',
       visible: isAdmin,
+      ariaLabel: 'Перейти в управление пользователями (админ)',
     },
     {
       name: 'Админ панель',
       href: '/admin',
       icon: '⚙️',
       visible: isAdmin,
+      ariaLabel: 'Перейти в админ-панель',
     },
   ];
 
   if (!sidebarOpen) return null;
 
   return (
-    <div className="fixed inset-y-0 left-0 z-40 w-64 bg-white border-r border-gray-200 shadow-lg">
+    <aside className="fixed inset-y-0 left-0 z-40 w-64 bg-white border-r border-gray-200 shadow-lg">
       <div className="flex flex-col h-full">
         {/* Заголовок */}
         <div className="p-6 border-b border-gray-200">
@@ -83,7 +90,7 @@ const Sidebar: React.FC = () => {
         </div>
 
         {/* Навигация */}
-        <nav className="flex-1 p-4 space-y-2">
+        <nav className="flex-1 p-4 space-y-2" aria-label="Основная навигация">
           {navItems
             .filter((item) => item.visible)
             .map((item) => (
@@ -97,6 +104,8 @@ const Sidebar: React.FC = () => {
                     : 'text-gray-700 hover:bg-gray-100'
                 )}
                 onClick={() => setSidebarOpen(false)}
+                aria-label={item.ariaLabel}
+                aria-current={pathname.startsWith(item.href.split('?')[0]) ? 'page' : undefined}
               >
                 <span className="text-lg">{item.icon}</span>
                 <span className="font-medium">{item.name}</span>
@@ -141,7 +150,7 @@ const Sidebar: React.FC = () => {
           )}
         </div>
       </div>
-    </div>
+    </aside>
   );
 };
 

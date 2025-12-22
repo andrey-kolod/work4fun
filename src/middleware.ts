@@ -15,12 +15,33 @@ export async function middleware(request: NextRequest) {
   // ============================================
   const response = NextResponse.next();
 
-  response.headers.set(
-    'Content-Security-Policy',
-    isDev
-      ? "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' ws: wss:;"
-      : "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self';"
-  );
+  const cspDirectives = isDev
+    ? [
+        "default-src 'self'",
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.google.com https://www.gstatic.com",
+        "style-src 'self' 'unsafe-inline'",
+        "img-src 'self' data: blob:",
+        "font-src 'self'",
+        "connect-src 'self' ws: wss: https://www.google.com https://www.gstatic.com",
+        "frame-src 'self' https://www.google.com https://www.gstatic.com",
+        "frame-ancestors 'self'",
+      ]
+    : [
+        "default-src 'self'",
+        "script-src 'self' https://www.google.com https://www.gstatic.com",
+        "style-src 'self' 'unsafe-inline'",
+        "img-src 'self' data: blob:",
+        "font-src 'self'",
+        "connect-src 'self' https://www.google.com https://www.gstatic.com",
+        "frame-src 'self' https://www.google.com https://www.gstatic.com",
+        "frame-ancestors 'self'",
+      ];
+
+  if (isDev) {
+    console.log('🔒 [Middleware] CSP применён:', cspDirectives.join('; '));
+  }
+
+  response.headers.set('Content-Security-Policy', cspDirectives.join('; '));
 
   // ============================================
   // 📍 2. Логирование запроса (только dev)
@@ -81,7 +102,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  const userId = token.sub as string; // String (cuid())
+  const userId = token.sub as string;
   const userRole = token.role as $Enums.Role;
 
   if (isDev) {

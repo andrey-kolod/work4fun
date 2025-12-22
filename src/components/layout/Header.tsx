@@ -1,5 +1,4 @@
-// ФАЙЛ: src/components/layout/Header.tsx
-// НАЗНАЧЕНИЕ: Шапка сайта (верхняя панель) — видна только авторизованным пользователям
+// src/components/layout/Header.tsx
 
 'use client';
 
@@ -28,6 +27,7 @@ const Header: React.FC = () => {
   const noSidebarPaths = ['/projects', '/project-select'];
   const showSidebarElements = !noSidebarPaths.includes(pathname);
 
+  // Получаем имя пользователя
   const getUserName = () => {
     if (!session?.user) return '';
     const user = session.user as any;
@@ -37,6 +37,7 @@ const Header: React.FC = () => {
     return 'Пользователь';
   };
 
+  // Получаем инициалы для аватара
   const getUserInitials = () => {
     if (!session?.user) return 'U';
     const user = session.user as any;
@@ -52,6 +53,7 @@ const Header: React.FC = () => {
   const userAvatar = session?.user?.avatar;
   const initials = getUserInitials();
 
+  // Монтирование
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -73,31 +75,40 @@ const Header: React.FC = () => {
     return null;
   }
 
+  // Выход из системы
   const handleLogout = async () => {
     try {
       setIsLoading(true);
-      console.log('🔓 Начинаем выход из аккаунта...');
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🔓 [Header] Начинаем выход из аккаунта...');
+      }
 
       await signOut({
         redirect: false,
         callbackUrl: '/login',
       });
 
-      console.log('✅ Успешный выход! Переходим на /login');
+      if (process.env.NODE_ENV === 'development') {
+        console.log('✅ [Header] Успешный выход! Переходим на /login');
+      }
+
       router.push('/login');
+      router.refresh(); // ИСПРАВЛЕНИЕ: Обновляем серверные данные после выхода
     } catch (error) {
-      console.error('❌ Ошибка при выходе:', error);
+      console.error('❌ [Header] Ошибка при выходе:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
+  // Переход в Dashboard
   const goToDashboard = () => {
     if (selectedProject) {
       router.push(`/dashboard?projectId=${selectedProject.id}`);
     }
   };
 
+  // Переход в Kanban
   const goToKanban = () => {
     if (selectedProject) {
       router.push(`/tasks?projectId=${selectedProject.id}`);
@@ -114,8 +125,9 @@ const Header: React.FC = () => {
             {showSidebarElements && (
               <button
                 onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                aria-label="Открыть меню"
+                className="p-2 rounded-lg hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500"
+                aria-label="Открыть/закрыть меню"
+                aria-expanded={sidebarOpen}
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
@@ -128,18 +140,19 @@ const Header: React.FC = () => {
               </button>
             )}
 
-            {/* Логотип (всегда видимый) */}
+            {/* Логотип */}
             <Link href="/tasks" className="flex items-center gap-2">
               <span className="text-xl font-bold text-purple-600">Work4Fun</span>
             </Link>
 
-            {/* Навигационные кнопки (только где есть сайдбар И выбран проект) */}
+            {/* Навигационные кнопки (только где есть сайдбар и выбран проект) */}
             {showSidebarElements && selectedProject && (
               <>
                 <Button
                   onClick={goToKanban}
                   variant={pathname.startsWith('/tasks') ? 'primary' : 'ghost'}
                   className="hidden md:flex items-center gap-2"
+                  aria-label="Перейти в Kanban"
                 >
                   <span>✅</span>
                   Kanban
@@ -149,6 +162,7 @@ const Header: React.FC = () => {
                   onClick={goToDashboard}
                   variant={pathname.startsWith('/dashboard') ? 'primary' : 'ghost'}
                   className="hidden md:flex items-center gap-2"
+                  aria-label="Перейти в Dashboard"
                 >
                   <span>📊</span>
                   Dashboard
@@ -181,7 +195,7 @@ const Header: React.FC = () => {
                   src={userAvatar}
                   alt={
                     `${session?.user?.firstName || ''} ${session?.user?.lastName || ''}`.trim() ||
-                    'Аватар'
+                    'Аватар пользователя'
                   }
                   width={32}
                   height={32}
@@ -199,6 +213,7 @@ const Header: React.FC = () => {
               size="sm"
               disabled={isLoading}
               className="text-red-600 hover:text-red-700 hover:bg-red-50"
+              aria-label="Выйти из аккаунта"
             >
               {isLoading ? 'Выход...' : 'Выйти'}
             </Button>
