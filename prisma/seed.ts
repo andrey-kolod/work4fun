@@ -1,9 +1,27 @@
-// ФАЙЛ: prisma/seed.ts
-// Демо-данные для полного тестирования ролевой модели
+// prisma/seed.ts
 
 import { prisma } from '../src/lib/prisma';
 import { hash } from 'bcryptjs';
 import { Role, ProjectRole } from '@prisma/client';
+
+function generateSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-]/g, '')
+    .replace(/-+/g, '-');
+}
+
+async function makeSlugUnique(baseSlug: string): Promise<string> {
+  let slug = baseSlug;
+  let counter = 1;
+  while (true) {
+    const exists = await prisma.project.findFirst({ where: { slug } });
+    if (!exists) return slug;
+    slug = `${baseSlug}-${counter++}`;
+  }
+}
 
 async function main() {
   console.log('🌱 Запуск сида с полным набором тестовых пользователей...');
@@ -244,6 +262,28 @@ async function main() {
     ],
     skipDuplicates: true,
   });
+
+  // === ЗАПОЛНЕНИЕ SLUG ДЛЯ СУЩЕСТВУЮЩИХ ПРОЕКТОВ ===
+  console.log('🔗 Заполняем slug для существующих проектов...');
+  const allProjects = await prisma.project.findMany({
+    select: { id: true, name: true, slug: true },
+  });
+
+  for (const project of allProjects) {
+    if (!project.slug) {
+      let slug = generateSlug(project.name);
+      slug = await makeSlugUnique(slug);
+
+      await prisma.project.update({
+        where: { id: project.id },
+        data: { slug },
+      });
+
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`✅ Slug для проекта "${project.name}" установлен: ${slug}`);
+      }
+    }
+  }
 
   console.log('🎉 Демо-данные успешно созданы!');
   console.log('🔑 Пароль для всех: demo123');

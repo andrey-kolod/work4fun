@@ -2,7 +2,7 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 
@@ -28,41 +28,133 @@ interface ProjectSelectorProps {
   userName: string;
   canCreateProject: boolean;
   userOwnedProjectsCount: number;
+  maxAllowedProjects: number;
+  errorParams?: {
+    error: string;
+    owned: string;
+    max: string;
+  } | null;
 }
 
 export default function ProjectsClient({
-  projects,
+  projects = [],
   userRole,
   userName,
   canCreateProject,
   userOwnedProjectsCount,
+  maxAllowedProjects,
+  errorParams,
 }: ProjectSelectorProps) {
   const router = useRouter();
 
+  const projectsArray = useMemo(() => (Array.isArray(projects) ? projects : []), [projects]);
+
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
-    projects.length === 1 ? projects[0].id : null
+    projectsArray.length === 1 ? projectsArray[0]?.id || null : null
   );
   const [isLoading, setIsLoading] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
 
-  if (process.env.NODE_ENV === 'development' && projects.length === 1) {
-    console.log('🎯 [ProjectsClient] Авто-выбор первого проекта:', projects[0].id);
-  }
+  // Логирование для разработки
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🎯 [ProjectsClient] Получены props:', {
+        projectsCount: projectsArray.length,
+        userRole,
+        userName,
+        canCreateProject,
+        userOwnedProjectsCount,
+        maxAllowedProjects,
+        errorParams,
+      });
 
-  const handleGoToProject = () => {
-    if (!selectedProjectId) return;
-    setIsLoading(true);
-    router.push(`/tasks?projectId=${selectedProjectId}`);
-  };
-
-  const handleCreateProject = () => {
-    if (!canCreateProject && userRole !== 'SUPER_ADMIN') {
-      alert(`Лимит проектов: ${userOwnedProjectsCount}/3`);
-      return;
+      if (projectsArray.length === 1) {
+        console.log('🎯 [ProjectsClient] Авто-выбор первого проекта:', projectsArray[0].id);
+      }
     }
-    router.push('/admin/projects/create');
-  };
+  }, [
+    projectsArray,
+    userRole,
+    userName,
+    canCreateProject,
+    userOwnedProjectsCount,
+    maxAllowedProjects,
+    errorParams,
+  ]);
 
-  const getProjectRoleDisplay = (role: Project['currentUserRole']) => {
+  // Обработка ошибок из URL
+  useEffect(() => {
+    let errorTimer: NodeJS.Timeout;
+    let infoTimer: NodeJS.Timeout;
+
+    const handleError = () => {
+      if (errorParams?.error === 'project_limit_reached') {
+        const message = `Достигнут лимит проектов. У вас уже ${errorParams.owned} из ${errorParams.max} возможных проектов.`;
+
+        errorTimer = setTimeout(() => {
+          setErrorMessage(message);
+          setInfoMessage(
+            'Для создания нового проекта передайте владение одним из существующих проектов.'
+          );
+        }, 0);
+
+        if (process.env.NODE_ENV === 'development') {
+          console.warn(`🚫 [ProjectsClient] Ошибка из URL: ${message}`);
+        }
+
+        infoTimer = setTimeout(() => {
+          setInfoMessage(null);
+        }, 5000);
+      }
+    };
+
+    handleError();
+
+    return () => {
+      if (errorTimer) clearTimeout(errorTimer);
+      if (infoTimer) clearTimeout(infoTimer);
+    };
+  }, [errorParams]);
+
+  const handleGoToProject = useCallback(() => {
+    if (!selectedProjectId) {
+      const errorTimer = setTimeout(() => {
+        setErrorMessage('Пожалуйста, выберите проект');
+      }, 0);
+
+      const clearTimer = setTimeout(() => {
+        setErrorMessage(null);
+      }, 3000);
+
+      return () => {
+        clearTimeout(errorTimer);
+        clearTimeout(clearTimer);
+      };
+    }
+
+    setIsLoading(true);
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`➡️ [ProjectsClient] Переход в проект: ${selectedProjectId}`);
+    }
+    router.push(`/tasks?projectId=${selectedProjectId}`);
+  }, [selectedProjectId, router]);
+
+  const handleCreateProject = useCallback(async () => {
+    setIsCreating(true);
+
+    // [ИСПРАВЛЕНИЕ] Все пользователи используют один путь
+    const createPath = '/projects/create';
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`✅ [ProjectsClient] ${userRole} создает проект по пути: ${createPath}`);
+    }
+
+    router.push(createPath);
+  }, [router, userRole]);
+
+  const getProjectRoleDisplay = useCallback((role: Project['currentUserRole']) => {
     switch (role) {
       case 'PROJECT_OWNER':
         return '👑 Владелец';
@@ -75,16 +167,56 @@ export default function ProjectsClient({
       default:
         return '👤 Участник';
     }
-  };
+  }, []);
 
-  const getUserRoleDisplay = (role: 'SUPER_ADMIN' | 'USER') => {
+  const getUserRoleDisplay = useCallback((role: 'SUPER_ADMIN' | 'USER') => {
     return role === 'SUPER_ADMIN' ? '🔧 Супер-администратор' : '📝 Пользователь';
-  };
+  }, []);
+
+  const handleProjectSelect = useCallback((projectId: string) => {
+    setSelectedProjectId(projectId);
+  }, []);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent, projectId: string) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        handleProjectSelect(projectId);
+      }
+    },
+    [handleProjectSelect]
+  );
 
   return (
     <div className="w-full max-w-2xl mx-auto">
+      {errorMessage && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <div className="flex items-start">
+            <div className="flex-shrink-0 pt-0.5">
+              <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                <path
+                  fillRule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </div>
+            <div className="ml-3 flex-1">
+              <h3 className="text-sm font-medium text-red-800">Ограничение</h3>
+              <div className="mt-1 text-sm text-red-700">
+                <p>{errorMessage}</p>
+                {infoMessage && (
+                  <p className="mt-2 text-sm text-blue-700 bg-blue-50 p-2 rounded">
+                    💡 {infoMessage}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-lg shadow-lg p-8">
-        {/* Заголовок */}
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Добро пожаловать, {userName}!</h1>
           <p className="text-gray-600">Выберите проект для работы</p>
@@ -93,8 +225,7 @@ export default function ProjectsClient({
           </div>
         </div>
 
-        {/* Список проектов или сообщение о пустом списке */}
-        {projects.length === 0 ? (
+        {projectsArray.length === 0 ? (
           <div className="text-center py-12">
             <div className="text-5xl mb-4">📁</div>
             <h3 className="text-xl font-semibold text-gray-900 mb-3">У вас пока нет проектов</h3>
@@ -113,10 +244,18 @@ export default function ProjectsClient({
             ) : canCreateProject ? (
               <button
                 onClick={handleCreateProject}
-                className="px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+                disabled={isCreating}
+                className="px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 aria-label="Создать первый проект"
               >
-                ✨ Создать первый проект
+                {isCreating ? (
+                  <>
+                    <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                    Переход...
+                  </>
+                ) : (
+                  '✨ Создать первый проект'
+                )}
               </button>
             ) : (
               <div className="space-y-4">
@@ -135,9 +274,8 @@ export default function ProjectsClient({
           </div>
         ) : (
           <>
-            {/* Список карточек проектов */}
             <div className="space-y-4 mb-8">
-              {projects.map((project) => (
+              {projectsArray.map((project) => (
                 <div
                   key={project.id}
                   className={cn(
@@ -146,15 +284,11 @@ export default function ProjectsClient({
                       ? 'border-purple-500 bg-purple-50 shadow-md'
                       : 'border-gray-200 hover:border-purple-300 hover:bg-gray-50'
                   )}
-                  onClick={() => setSelectedProjectId(project.id)}
+                  onClick={() => handleProjectSelect(project.id)}
                   role="radio"
                   aria-checked={selectedProjectId === project.id}
                   tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      setSelectedProjectId(project.id);
-                    }
-                  }}
+                  onKeyDown={(e) => handleKeyDown(e, project.id)}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
@@ -176,7 +310,6 @@ export default function ProjectsClient({
                       </div>
                     </div>
 
-                    {/* Радио-кнопка */}
                     <div
                       className={cn(
                         'w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-200',
@@ -195,7 +328,6 @@ export default function ProjectsClient({
               ))}
             </div>
 
-            {/* Кнопка "Перейти к проекту" */}
             <button
               onClick={handleGoToProject}
               disabled={!selectedProjectId || isLoading}
@@ -212,15 +344,37 @@ export default function ProjectsClient({
               )}
             </button>
 
-            {/* Кнопка "Создать новый проект" */}
             <div className="text-center">
               {userRole === 'SUPER_ADMIN' || canCreateProject ? (
                 <button
                   onClick={handleCreateProject}
-                  className="text-sm font-medium text-purple-600 hover:text-purple-800 transition-colors"
+                  disabled={isCreating}
+                  className="text-sm font-medium text-purple-600 hover:text-purple-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1 mx-auto"
                   aria-label="Создать новый проект"
                 >
-                  Создать новый проект
+                  {isCreating ? (
+                    <>
+                      <div className="w-3 h-3 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+                      Переход...
+                    </>
+                  ) : (
+                    <>
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 4v16m8-8H4"
+                        />
+                      </svg>
+                      Создать новый проект
+                    </>
+                  )}
                 </button>
               ) : (
                 <p className="text-sm text-gray-500">
@@ -229,6 +383,27 @@ export default function ProjectsClient({
               )}
             </div>
           </>
+        )}
+
+        {process.env.NODE_ENV === 'development' && (
+          <div className="mt-8 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+            <h4 className="text-sm font-medium text-gray-700 mb-2">Отладка:</h4>
+            <div className="text-xs text-gray-600 space-y-1">
+              <p>
+                <strong>Выбранный проект:</strong> {selectedProjectId || 'нет'}
+              </p>
+              <p>
+                <strong>Проектов всего:</strong> {projectsArray.length}
+              </p>
+              <p>
+                <strong>Может создать проект:</strong> {canCreateProject ? 'Да' : 'Нет'}
+              </p>
+              <p>
+                <strong>Проектов как владелец:</strong> {userOwnedProjectsCount}/
+                {maxAllowedProjects}
+              </p>
+            </div>
+          </div>
         )}
       </div>
     </div>

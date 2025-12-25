@@ -1,9 +1,12 @@
 // src/lib/services/permissionService.ts
-
 import { prisma } from '@/lib/prisma';
 import { $Enums } from '@prisma/client';
 
 export class PermissionService {
+  /**
+   * Проверяет, может ли пользователь создать новый проект.
+   * Считает проекты, где пользователь имеет роль PROJECT_OWNER в ProjectMembership.
+   */
   static async canCreateProject(userId: string): Promise<boolean> {
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -12,31 +15,105 @@ export class PermissionService {
 
     if (!user) return false;
 
-    if (user.role === $Enums.Role.SUPER_ADMIN) return true;
+    // SUPER_ADMIN может создавать без ограничений
+    if (user.role === $Enums.Role.SUPER_ADMIN) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log(
+          `✅ [PermissionService] SUPER_ADMIN ${userId} может создавать проекты без ограничений`
+        );
+      }
+      return true;
+    }
 
-    const ownedCount = await prisma.project.count({
-      where: { ownerId: userId },
+    // Считаем проекты, где пользователь имеет роль PROJECT_OWNER в memberships
+    const ownedProjectsCount = await prisma.projectMembership.count({
+      where: {
+        userId,
+        role: $Enums.ProjectRole.PROJECT_OWNER,
+      },
+    });
+
+    const MAX_PROJECTS_FOR_OWNER = 3;
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log(
+        `📊 [PermissionService] USER ${userId}: ${ownedProjectsCount}/${MAX_PROJECTS_FOR_OWNER} проектов (как PROJECT_OWNER)`
+      );
+    }
+
+    return ownedProjectsCount < MAX_PROJECTS_FOR_OWNER;
+  }
+
+  /**
+   * Возвращает количество проектов, где пользователь PROJECT_OWNER
+   */
+  static async getOwnedProjectsCount(userId: string): Promise<number> {
+    const count = await prisma.projectMembership.count({
+      where: {
+        userId,
+        role: $Enums.ProjectRole.PROJECT_OWNER,
+      },
     });
 
     if (process.env.NODE_ENV === 'development') {
       console.log(
-        `🔍 [PermissionService.canCreateProject] ${userId}: ${ownedCount}/3 проектов (владелец)`
+        `📊 [PermissionService] ${userId} владеет ${count} проектами (как PROJECT_OWNER)`
       );
     }
 
-    return ownedCount < 3;
+    return count;
   }
 
-  static async getOwnedProjectsCount(userId: string): Promise<number> {
-    const count = await prisma.project.count({
-      where: { ownerId: userId },
+  /**
+   * Получает детальную информацию о лимите проектов
+   * [ИСПРАВЛЕНИЕ] Добавлен этот метод, которого не хватало
+   */
+  static async getProjectCreationInfo(userId: string): Promise<{
+    canCreate: boolean;
+    ownedCount: number;
+    maxAllowed: number;
+    reason?: string;
+  }> {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
     });
 
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`🔍 [PermissionService.getOwnedProjectsCount] ${userId}: ${count} проектов`);
+    if (!user) {
+      return {
+        canCreate: false,
+        ownedCount: 0,
+        maxAllowed: 0,
+        reason: 'Пользователь не найден',
+      };
     }
 
-    return count;
+    // SUPER_ADMIN не имеет ограничений
+    if (user.role === $Enums.Role.SUPER_ADMIN) {
+      return {
+        canCreate: true,
+        ownedCount: 0,
+        maxAllowed: Infinity,
+      };
+    }
+
+    // Для обычных пользователей считаем PROJECT_OWNER проекты
+    const ownedCount = await this.getOwnedProjectsCount(userId);
+    const MAX_PROJECTS = 3;
+
+    const canCreate = ownedCount < MAX_PROJECTS;
+    let reason: string | undefined;
+
+    if (!canCreate) {
+      reason = `Достигнут лимит в ${MAX_PROJECTS} проекта. У вас уже ${ownedCount} проектов в качестве владельца.`;
+    }
+
+    return {
+      canCreate,
+      ownedCount,
+      maxAllowed: MAX_PROJECTS,
+      reason,
+    };
   }
 
   static async canViewProject(userId: string, projectId: string): Promise<boolean> {
@@ -46,12 +123,6 @@ export class PermissionService {
         projectId,
       },
     });
-
-    if (process.env.NODE_ENV === 'development') {
-      console.log(
-        `🔍 [PermissionService.canViewProject] ${userId} -> проект ${projectId}: ${!!membership}`
-      );
-    }
 
     return !!membership;
   }
@@ -73,12 +144,6 @@ export class PermissionService {
         },
       },
     });
-
-    if (process.env.NODE_ENV === 'development') {
-      console.log(
-        `🔍 [PermissionService.canEditProject] ${userId} -> проект ${projectId}: ${!!membership}`
-      );
-    }
 
     return !!membership;
   }

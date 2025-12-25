@@ -1,19 +1,29 @@
 // src/app/api/projects/route.ts
-// ПОЛНОСТЬЮ ИСПРАВЛЕННЫЙ ФАЙЛ
-// Изменения:
-// - Все ID — string (cuid()).
-// - Отношение — members.
-// - _count.members — количество участников.
-// - Убрано incrementProjectCount (поля нет).
-// - Пагинация + поиск.
-// - Безопасность: проверка прав через PermissionService.
-// - Dev-логи.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { PermissionService } from '@/lib/services/permissionService';
+
+function generateSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-') // пробелы → дефис
+    .replace(/[^a-z0-9-]/g, '') // убираем всё кроме букв, цифр, дефиса
+    .replace(/-+/g, '-'); // несколько дефисов → один
+}
+
+async function makeSlugUnique(baseSlug: string): Promise<string> {
+  let slug = baseSlug;
+  let counter = 1;
+  while (true) {
+    const exists = await prisma.project.findFirst({ where: { slug } });
+    if (!exists) return slug;
+    slug = `${baseSlug}-${counter++}`;
+  }
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -61,9 +71,20 @@ export async function GET(request: NextRequest) {
     const [projects, total] = await Promise.all([
       prisma.project.findMany({
         where,
-        include: {
-          owner: { select: { id: true, firstName: true, lastName: true, email: true } },
-          _count: { select: { tasks: true, members: true } },
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          slug: true, // slug теперь возвращается
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+          owner: {
+            select: { id: true, firstName: true, lastName: true, email: true },
+          },
+          _count: {
+            select: { tasks: true, members: true },
+          },
         },
         orderBy: { name: 'asc' },
         skip,
@@ -77,6 +98,10 @@ export async function GET(request: NextRequest) {
     if (process.env.NODE_ENV === 'development') {
       console.log(
         `✅ [API /projects GET] ${projects.length} проектов (страница ${page}/${totalPages})`
+      );
+      console.log(
+        '🔗 [API /projects GET] Slug в ответе:',
+        projects.map((p) => p.slug)
       );
     }
 
@@ -98,62 +123,103 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (session.user.role !== 'SUPER_ADMIN') {
-      return NextResponse.json({ error: 'Доступ запрещён' }, { status: 403 });
+    const userId = session.user.id as string;
+
+    // [ИСПРАВЛЕНО] Используем обновлённый метод с правильной логикой подсчёта
+    const canCreate = await PermissionService.canCreateProject(userId);
+
+    if (!canCreate) {
+      // [ИСПРАВЛЕНО] Получаем корректное количество проектов
+      const ownedCount = await PermissionService.getOwnedProjectsCount(userId);
+      const MAX_PROJECTS = 3;
+
+      if (process.env.NODE_ENV === 'development') {
+        console.warn(
+          `🚫 [API /projects POST] Отказ пользователю ${userId}: ${ownedCount}/${MAX_PROJECTS} проектов`
+        );
+      }
+
+      return NextResponse.json(
+        {
+          error: 'Превышен лимит проектов',
+          details: `Вы уже являетесь владельцем ${ownedCount} из ${MAX_PROJECTS} возможных проектов. Для создания нового передайте владение одним из существующих проектов.`,
+        },
+        { status: 403 }
+      );
     }
 
     const body = await request.json();
-    const { name, description, ownerId: rawOwnerId, startDate, endDate } = body;
+    const { name, description } = body;
 
-    if (!name || typeof name !== 'string' || name.trim().length === 0) {
-      return NextResponse.json({ error: 'Название проекта обязательно' }, { status: 400 });
-    }
-
-    const ownerId = (rawOwnerId as string) || (session.user.id as string);
-
-    const owner = await prisma.user.findUnique({ where: { id: ownerId } });
-    if (!owner) {
-      return NextResponse.json({ error: 'Пользователь-владелец не найден' }, { status: 404 });
-    }
-
-    const canCreate = await PermissionService.canCreateProject(ownerId);
-    if (!canCreate) {
-      const ownedCount = await PermissionService.getOwnedProjectsCount(ownerId);
+    if (!name || typeof name !== 'string' || name.trim().length < 3) {
       return NextResponse.json(
-        { error: `Превышен лимит (макс. 3). Уже ${ownedCount}` },
+        { error: 'Название проекта обязательно, минимум 3 символа' },
         { status: 400 }
       );
     }
 
-    const project = await prisma.project.create({
-      data: {
-        name: name.trim(),
-        description: description?.trim() || null,
-        ownerId,
-        status: 'ACTIVE',
-        startDate: startDate ? new Date(startDate) : null,
-        endDate: endDate ? new Date(endDate) : null,
-      },
-      include: {
-        owner: { select: { id: true, firstName: true, lastName: true, email: true } },
-      },
-    });
+    let slug = generateSlug(name);
+    slug = await makeSlugUnique(slug);
 
-    await prisma.projectMembership.create({
-      data: {
-        userId: ownerId,
-        projectId: project.id,
-        role: 'PROJECT_OWNER',
-      },
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`🔍 [API /projects POST] Создание проекта "${name}" для пользователя ${userId}`);
+      console.log(`🔗 [API /projects POST] Сгенерированный slug: ${slug}`);
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      // Создаём проект
+      const project = await tx.project.create({
+        data: {
+          name: name.trim(),
+          description: description?.trim() || null,
+          slug,
+          status: 'ACTIVE',
+          ownerId: userId, // ownerId в модели Project для быстрого поиска
+        },
+        include: {
+          owner: { select: { id: true, firstName: true, lastName: true, email: true } },
+        },
+      });
+
+      // [ВАЖНО] Создаём запись в ProjectMembership с ролью PROJECT_OWNER
+      await tx.projectMembership.create({
+        data: {
+          userId,
+          projectId: project.id,
+          role: 'PROJECT_OWNER', // Это то, что считает лимит!
+        },
+      });
+
+      // Аудит-лог
+      await tx.auditLog.create({
+        data: {
+          userId,
+          entityType: 'Project',
+          entityId: project.id,
+          action: 'CREATE',
+          details: JSON.stringify({
+            name: project.name,
+            slug,
+            ownerId: userId,
+          }),
+          ipAddress: request.headers.get('x-forwarded-for') || undefined,
+        },
+      });
+
+      return project;
     });
 
     if (process.env.NODE_ENV === 'development') {
+      console.log(`✅ [API /projects POST] Проект создан (ID: ${result.id}, slug: ${result.slug})`);
       console.log(
-        `✅ [API /projects POST] Проект создан (ID: ${project.id}), владелец: ${ownerId}`
+        `👑 [API /projects POST] Пользователь ${userId} назначен PROJECT_OWNER проекта ${result.id}`
       );
     }
 
-    return NextResponse.json({ project, message: 'Проект успешно создан' }, { status: 201 });
+    return NextResponse.json(
+      { project: result, message: 'Проект успешно создан' },
+      { status: 201 }
+    );
   } catch (error) {
     console.error('💥 [API /projects POST] Ошибка:', error);
     return NextResponse.json({ error: 'Ошибка при создании проекта' }, { status: 500 });

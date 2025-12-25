@@ -3,7 +3,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { getToken } from 'next-auth/jwt';
-import { prisma } from '@/lib/prisma';
 import { $Enums } from '@prisma/client';
 
 export async function middleware(request: NextRequest) {
@@ -33,7 +32,7 @@ export async function middleware(request: NextRequest) {
         "img-src 'self' data: blob:",
         "font-src 'self'",
         "connect-src 'self' https://www.google.com https://www.gstatic.com",
-        "frame-src 'self' https://www.google.com https://www.gstatic.com",
+        "frame-src 'self' https://www.gstatic.com https://www.google.com",
         "frame-ancestors 'self'",
       ];
 
@@ -75,6 +74,7 @@ export async function middleware(request: NextRequest) {
   if (isPublicPath) {
     const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
 
+    // Если пользователь уже авторизован и пытается зайти на главную/логин/регистрацию
     if (token && (pathname === '/' || pathname === '/login' || pathname === '/register')) {
       if (isDev) {
         console.log(`↳ [Middleware] Авторизован на публичной странице — редирект на /projects`);
@@ -98,7 +98,7 @@ export async function middleware(request: NextRequest) {
       console.log(`↳ [Middleware] Нет токена — редирект на /login`);
     }
     const loginUrl = new URL('/login', request.url);
-    loginUrl.searchParams.set('callbackUrl', pathname);
+    loginUrl.searchParams.set('callbackUrl', encodeURIComponent(pathname));
     return NextResponse.redirect(loginUrl);
   }
 
@@ -110,88 +110,36 @@ export async function middleware(request: NextRequest) {
   }
 
   // ============================================
-  // 🎯 5. Корневой путь (/)
+  // 🎯 5. Корневой путь (/) - упрощённая логика
   // ============================================
   if (pathname === '/') {
-    try {
-      const projectCount = await prisma.projectMembership.count({
-        where: { userId },
-      });
-
-      if (isDev) {
-        console.log(`↳ [Middleware] Проектов у пользователя: ${projectCount}`);
-      }
-
-      if (projectCount === 0) {
-        if (isDev) {
-          console.log(`↳ [Middleware] Нет проектов — редирект на /no-projects`);
-        }
-        return NextResponse.redirect(new URL('/no-projects', request.url));
-      }
-
-      if (projectCount === 1) {
-        const membership = await prisma.projectMembership.findFirst({
-          where: { userId },
-          select: { projectId: true },
-        });
-
-        if (membership?.projectId) {
-          const tasksUrl = new URL('/tasks', request.url);
-          tasksUrl.searchParams.set('projectId', membership.projectId);
-          if (isDev) {
-            console.log(
-              `↳ [Middleware] Один проект — редирект в /tasks?projectId=${membership.projectId}`
-            );
-          }
-          return NextResponse.redirect(tasksUrl);
-        }
-      }
-
-      if (isDev) {
-        console.log(`↳ [Middleware] Несколько проектов — редирект на /projects`);
-      }
-      return NextResponse.redirect(new URL('/projects', request.url));
-    } catch (error) {
-      console.error('💥 [Middleware] Ошибка проверки проектов:', error);
-      return NextResponse.redirect(new URL('/projects', request.url));
+    if (isDev) {
+      console.log(`↳ [Middleware] Корневой путь — редирект на /projects`);
     }
+    return NextResponse.redirect(new URL('/projects', request.url));
   }
 
   // ============================================
-  // 📋 6. Страница проектов (/projects*)
+  // 📋 6. Страница проектов (/projects*) - упрощённая проверка
   // ============================================
   if (pathname.startsWith('/projects')) {
     if (isDev) {
-      console.log(`↳ [Middleware] Доступ к /projects разрешён (явный запрос пользователя)`);
+      console.log(`↳ [Middleware] Доступ к /projects разрешён`);
     }
 
-    // Проверка лимита при создании проекта
+    // Разрешаем доступ к созданию проекта всем авторизованным
     if (pathname === '/projects/create') {
-      if (userRole !== $Enums.Role.SUPER_ADMIN) {
-        try {
-          const ownedCount = await prisma.project.count({
-            where: { ownerId: userId },
-          });
-
-          if (ownedCount >= 3) {
-            if (isDev) {
-              console.log(`↳ [Middleware] Лимит проектов достигнут (${ownedCount}/3)`);
-            }
-            const url = new URL('/projects', request.url);
-            url.searchParams.set('error', 'project_limit_reached');
-            return NextResponse.redirect(url);
-          }
-        } catch (error) {
-          console.error('💥 [Middleware] Ошибка проверки лимита:', error);
-        }
+      if (isDev) {
+        console.log(`✅ [Middleware] Разрешаем создание проекта для ${userRole}`);
       }
+      return response;
     }
 
     return response;
   }
 
   // ============================================
-  // 📊 7. Дашборд и задачи
+  // 📊 7. Дашборд и задачи - упрощённая проверка
   // ============================================
   if (pathname.startsWith('/dashboard') || pathname.startsWith('/tasks')) {
     const projectId = request.nextUrl.searchParams.get('projectId');
@@ -203,26 +151,28 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL('/projects', request.url));
     }
 
-    if (userRole !== $Enums.Role.SUPER_ADMIN) {
-      const hasAccess = await prisma.projectMembership.findFirst({
-        where: { userId, projectId },
-      });
-
-      if (!hasAccess) {
-        if (isDev) {
-          console.log(`↳ [Middleware] Нет доступа к проекту ${projectId}`);
-        }
-        return NextResponse.redirect(new URL('/projects', request.url));
-      }
+    if (isDev) {
+      console.log(`↳ [Middleware] ProjectId найден: ${projectId}, доступ к ${pathname} разрешён`);
     }
 
     return response;
   }
 
   // ============================================
-  // 👑 8. Админка
+  // 👑 8. Админка - проверка роли
   // ============================================
   if (pathname.startsWith('/admin')) {
+    // Только SUPER_ADMIN может создавать проекты через админку
+    if (pathname === '/admin/projects/create' && userRole !== $Enums.Role.SUPER_ADMIN) {
+      if (isDev) {
+        console.log(
+          `❌ [Middleware] Доступ к админскому созданию проекта запрещён для ${userRole}`
+        );
+      }
+      return NextResponse.redirect(new URL('/projects/create', request.url));
+    }
+
+    // Все остальные админские пути только для SUPER_ADMIN
     if (userRole !== $Enums.Role.SUPER_ADMIN) {
       if (isDev) {
         console.log(`❌ [Middleware] Доступ к админке запрещён (роль: ${userRole})`);
@@ -237,14 +187,30 @@ export async function middleware(request: NextRequest) {
   // ============================================
   if (pathname.startsWith('/api/admin')) {
     if (userRole !== $Enums.Role.SUPER_ADMIN) {
+      if (isDev) {
+        console.log(`❌ [Middleware] Доступ к API админки запрещён (роль: ${userRole})`);
+      }
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     return response;
   }
 
   // ============================================
-  // ✅ 10. Всё остальное
+  // 🔧 10. API проектов - упрощённая проверка
   // ============================================
+  if (pathname.startsWith('/api/projects') && request.method === 'POST') {
+    if (isDev) {
+      console.log(`↳ [Middleware] Запрос на создание проекта от пользователя ${userId}`);
+    }
+    return response;
+  }
+
+  // ============================================
+  // ✅ 11. Всё остальное
+  // ============================================
+  if (isDev) {
+    console.log(`✅ [Middleware] Разрешён доступ к ${pathname}`);
+  }
   return response;
 }
 
@@ -252,4 +218,6 @@ export const config = {
   matcher: [
     '/((?!_next/static|_next/image|favicon.ico|public|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
   ],
+  // Указываем, что middleware должен работать в Node.js runtime, а не Edge
+  runtime: 'nodejs',
 };

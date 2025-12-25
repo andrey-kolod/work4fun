@@ -1,15 +1,5 @@
 // prisma/schema.prisma
 
-// После внесения изменений:
-// # ✅ 1. Создать и применить миграцию
-// npx prisma migrate dev --name add_groups_and_roles
-//
-// # ✅ 2. Перегенерировать клиент
-// npx prisma generate
-//
-// # ✅ 3. Перезапустить сервер
-// npm run dev
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -49,7 +39,7 @@ model User {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
   deletedAt     DateTime?
-  auditLogs  AuditLog[] @relation("UserAuditLogs")
+  auditLogs     AuditLog[]    @relation("UserAuditLogs")
   accounts      Account[]
   sessions      Session[]
 
@@ -148,12 +138,15 @@ model Project {
   ownerId      String
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
+  slug         String?       @unique   // Добавлено! Optional для миграции, уникальное
 
   owner        User          @relation("ProjectOwner", fields: [ownerId], references: [id])
-  
+
   members      ProjectMembership[]
   groups       Group[]
   tasks        Task[]
+
+  @@index([slug])  // Индекс для быстрого поиска по slug
 }
 
 model Task {
@@ -162,12 +155,12 @@ model Task {
   description String?
   status      TaskStatus   @default(TODO)
   priority    TaskPriority @default(MEDIUM)
-  
+
   projectId   String
   groupId     String?
 
-  assigneeId  String?      
-  assignerId  String       
+  assigneeId  String?
+  assignerId  String
 
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
@@ -212,7 +205,6 @@ model AuditLog {
   userAgent  String?
   createdAt  DateTime  @default(now())
 
-  // ИСПРАВЛЕНО: Обратное отношение на User
   user       User      @relation("UserAuditLogs", fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
