@@ -1,7 +1,7 @@
 // src/components/ui/PageLoader.tsx
 import React from 'react';
 
-const PageLoader: React.FC = () => {
+export const PageLoader: React.FC = () => {
   return (
     <div className="fixed inset-0 bg-white/80 backdrop-blur-sm z-50 flex items-center justify-center">
       <div className="text-center">
@@ -11,5 +11,3 @@ const PageLoader: React.FC = () => {
     </div>
   );
 };
-
-export default PageLoader;

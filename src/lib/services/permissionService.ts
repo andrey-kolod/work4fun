@@ -1,21 +1,18 @@
 // src/lib/services/permissionService.ts
+
 import { prisma } from '@/lib/prisma';
 import { $Enums } from '@prisma/client';
 
 export class PermissionService {
-  /**
-   * Проверяет, может ли пользователь создать новый проект.
-   * Считает проекты, где пользователь имеет роль PROJECT_OWNER в ProjectMembership.
-   */
   static async canCreateProject(userId: string): Promise<boolean> {
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { role: true },
     });
+    // SQL: SELECT role FROM "User" WHERE id = $1
 
     if (!user) return false;
 
-    // SUPER_ADMIN может создавать без ограничений
     if (user.role === $Enums.Role.SUPER_ADMIN) {
       if (process.env.NODE_ENV === 'development') {
         console.log(
@@ -25,13 +22,14 @@ export class PermissionService {
       return true;
     }
 
-    // Считаем проекты, где пользователь имеет роль PROJECT_OWNER в memberships
     const ownedProjectsCount = await prisma.projectMembership.count({
       where: {
         userId,
         role: $Enums.ProjectRole.PROJECT_OWNER,
       },
     });
+    // SQL: SELECT COUNT(*) FROM "ProjectMembership"
+    // WHERE userId = $1 AND role = 'PROJECT_OWNER'
 
     const MAX_PROJECTS_FOR_OWNER = 3;
 
@@ -44,9 +42,6 @@ export class PermissionService {
     return ownedProjectsCount < MAX_PROJECTS_FOR_OWNER;
   }
 
-  /**
-   * Возвращает количество проектов, где пользователь PROJECT_OWNER
-   */
   static async getOwnedProjectsCount(userId: string): Promise<number> {
     const count = await prisma.projectMembership.count({
       where: {
@@ -54,6 +49,8 @@ export class PermissionService {
         role: $Enums.ProjectRole.PROJECT_OWNER,
       },
     });
+    // SQL: SELECT COUNT(*) FROM "ProjectMembership"
+    // WHERE userId = $1 AND role = 'PROJECT_OWNER'
 
     if (process.env.NODE_ENV === 'development') {
       console.log(
@@ -64,10 +61,6 @@ export class PermissionService {
     return count;
   }
 
-  /**
-   * Получает детальную информацию о лимите проектов
-   * [ИСПРАВЛЕНИЕ] Добавлен этот метод, которого не хватало
-   */
   static async getProjectCreationInfo(userId: string): Promise<{
     canCreate: boolean;
     ownedCount: number;
@@ -78,6 +71,7 @@ export class PermissionService {
       where: { id: userId },
       select: { role: true },
     });
+    // SQL: SELECT role FROM "User" WHERE id = $1
 
     if (!user) {
       return {
@@ -88,7 +82,6 @@ export class PermissionService {
       };
     }
 
-    // SUPER_ADMIN не имеет ограничений
     if (user.role === $Enums.Role.SUPER_ADMIN) {
       return {
         canCreate: true,
@@ -97,7 +90,6 @@ export class PermissionService {
       };
     }
 
-    // Для обычных пользователей считаем PROJECT_OWNER проекты
     const ownedCount = await this.getOwnedProjectsCount(userId);
     const MAX_PROJECTS = 3;
 
@@ -123,15 +115,18 @@ export class PermissionService {
         projectId,
       },
     });
-
     return !!membership;
   }
+  // SQL: SELECT * FROM "ProjectMembership"
+  // WHERE userId = $1 AND projectId = $2
+  // LIMIT 1
 
   static async canEditProject(userId: string, projectId: string): Promise<boolean> {
     const globalUser = await prisma.user.findUnique({
       where: { id: userId },
       select: { role: true },
     });
+    // SQL: SELECT role FROM "User" WHERE id = $1
 
     if (globalUser?.role === $Enums.Role.SUPER_ADMIN) return true;
 
@@ -144,6 +139,10 @@ export class PermissionService {
         },
       },
     });
+    // SQL: SELECT * FROM "ProjectMembership"
+    // WHERE userId = $1 AND projectId = $2
+    // AND role IN ('PROJECT_OWNER', 'PROJECT_ADMIN')
+    // LIMIT 1
 
     return !!membership;
   }
@@ -153,6 +152,7 @@ export class PermissionService {
       where: { id: groupId },
       select: { projectId: true },
     });
+    // SQL: SELECT projectId FROM "Group" WHERE id = $1
 
     if (!group) return false;
 
@@ -167,6 +167,7 @@ export class PermissionService {
       where: { projectId },
       select: { id: true },
     });
+    // SQL: SELECT id FROM "Group" WHERE projectId = $1
 
     return groups.map((g) => g.id);
   }
@@ -175,6 +176,9 @@ export class PermissionService {
     return prisma.projectMembership.findFirst({
       where: { userId, projectId },
     });
+    // SQL: SELECT * FROM "ProjectMembership"
+    // WHERE userId = $1 AND projectId = $2
+    // LIMIT 1
   }
 
   static async getUserRoleInProject(
@@ -185,6 +189,9 @@ export class PermissionService {
       where: { userId, projectId },
       select: { role: true },
     });
+    // SQL: SELECT role FROM "ProjectMembership"
+    // WHERE userId = $1 AND projectId = $2
+    // LIMIT 1
 
     return membership?.role ?? null;
   }

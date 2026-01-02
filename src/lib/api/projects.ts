@@ -1,5 +1,7 @@
 // src/lib/api/projects.ts
 
+import { fetchJson } from '@/lib/api-client';
+
 export interface ProjectFilters {
   search?: string;
   status?: string;
@@ -9,41 +11,35 @@ export interface ProjectFilters {
 
 export interface ProjectCreateData {
   name: string;
-  description: string;
+  description?: string | null;
 }
 
 export interface ProjectUpdateData {
   name: string;
-  description: string;
+  description?: string | null;
   status: 'ACTIVE' | 'COMPLETED' | 'ARCHIVED';
 }
 
-export interface ProjectWithDetails {
-  id: number;
+export interface ProjectBasic {
+  id: string;
   name: string;
-  description: string;
-  status: 'ACTIVE' | 'COMPLETED' | 'ARCHIVED';
+  description: string | null;
+  slug: string;
+  status: 'ACTIVE' | 'ARCHIVED';
   owner: {
-    id: number;
-    firstName: string;
-    lastName: string;
+    id: string;
+    firstName: string | null;
+    lastName: string | null;
     email: string;
   };
-  progress: number;
-  groups: any[];
-  users: any[];
-  stats: {
-    totalTasks: number;
-    totalUsers: number;
-    totalGroups: number;
-    completedTasks: number;
+  _count: {
+    tasks: number;
+    members: number;
   };
-  createdAt: Date;
-  updatedAt: Date;
 }
 
 export interface ProjectsResponse {
-  projects: ProjectWithDetails[];
+  projects: ProjectBasic[];
   pagination: {
     page: number;
     pageSize: number;
@@ -55,6 +51,7 @@ export interface ProjectsResponse {
 class ProjectsAPI {
   private baseURL = '/api/projects';
 
+  // Получение списка проектов
   async getProjects(filters: ProjectFilters = {}): Promise<ProjectsResponse> {
     const params = new URLSearchParams();
 
@@ -63,100 +60,169 @@ class ProjectsAPI {
     if (filters.page) params.append('page', filters.page.toString());
     if (filters.pageSize) params.append('pageSize', filters.pageSize.toString());
 
-    const response = await fetch(`${this.baseURL}?${params.toString()}`);
+    const url = `${this.baseURL}?${params.toString()}`;
 
-    if (!response.ok) {
-      throw new Error('Ошибка при получении проектов');
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`📡 [ProjectsAPI] GET список проектов: ${url}`);
     }
 
-    return response.json();
-  }
+    const { data, error, status } = await fetchJson<ProjectsResponse>(url);
 
-  async getProject(id: number): Promise<{ project: ProjectWithDetails }> {
-    const response = await fetch(`${this.baseURL}/${id}`);
-
-    if (!response.ok) {
-      throw new Error('Ошибка при получении проекта');
+    if (error) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error(`🚨 [ProjectsAPI] Ошибка получения проектов (status ${status}):`, error);
+      }
+      throw new Error(error || 'Не удалось загрузить проекты');
     }
 
-    return response.json();
+    return data!;
   }
 
-  async createProject(projectData: ProjectCreateData): Promise<{ project: any }> {
-    const response = await fetch(this.baseURL, {
+  // Получение одного проекта
+  async getProject(id: string): Promise<{ project: ProjectBasic }> {
+    const url = `${this.baseURL}/${id}`;
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`📡 [ProjectsAPI] GET проект: ${url}`);
+    }
+
+    const { data, error, status } = await fetchJson<{ project: ProjectBasic }>(url);
+
+    if (error) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error(`🚨 [ProjectsAPI] Ошибка получения проекта ${id} (status ${status}):`, error);
+      }
+      throw new Error(error || 'Не удалось загрузить проект');
+    }
+
+    return data!;
+  }
+
+  // Создание проекта
+  async createProject(projectData: ProjectCreateData): Promise<{ project: ProjectBasic }> {
+    const url = this.baseURL;
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`📡 [ProjectsAPI] POST создание проекта:`, projectData);
+    }
+
+    const { data, error, status } = await fetchJson<{ project: ProjectBasic }>(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(projectData),
     });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Ошибка при создании проекта');
+    if (error) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error(`🚨 [ProjectsAPI] Ошибка создания проекта (status ${status}):`, error);
+      }
+
+      const message =
+        status === 403 ? 'Достигнут лимит в 3 проекта' : error || 'Не удалось создать проект';
+
+      throw new Error(message);
     }
 
-    return response.json();
+    if (process.env.NODE_ENV === 'development') {
+      console.log('✅ [ProjectsAPI] Проект успешно создан:', data?.project);
+    }
+
+    return data!;
   }
 
-  async updateProject(id: number, projectData: ProjectUpdateData): Promise<{ project: any }> {
-    const response = await fetch(`${this.baseURL}/${id}`, {
+  // Обновление проекта
+  async updateProject(
+    id: string,
+    projectData: ProjectUpdateData
+  ): Promise<{ project: ProjectBasic }> {
+    const url = `${this.baseURL}/${id}`;
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`📡 [ProjectsAPI] PUT обновление проекта ${id}:`, projectData);
+    }
+
+    const { data, error, status } = await fetchJson<{ project: ProjectBasic }>(url, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(projectData),
     });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Ошибка при обновлении проекта');
+    if (error) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error(`🚨 [ProjectsAPI] Ошибка обновления проекта (status ${status}):`, error);
+      }
+      throw new Error(error || 'Не удалось обновить проект');
     }
 
-    return response.json();
+    return data!;
   }
 
-  async deleteProject(id: number): Promise<{ message: string }> {
-    const response = await fetch(`${this.baseURL}/${id}`, {
+  // Удаление проекта
+  async deleteProject(id: string): Promise<{ message: string }> {
+    const url = `${this.baseURL}/${id}`;
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`📡 [ProjectsAPI] DELETE проект ${id}`);
+    }
+
+    const { data, error, status } = await fetchJson<{ message: string }>(url, {
       method: 'DELETE',
     });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Ошибка при удалении проекта');
+    if (error) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error(`🚨 [ProjectsAPI] Ошибка удаления проекта (status ${status}):`, error);
+      }
+      throw new Error(error || 'Не удалось удалить проект');
     }
 
-    return response.json();
+    return data!;
   }
 
-  async addUserToProject(projectId: number, userId: number): Promise<{ userProject: any }> {
-    const response = await fetch(`${this.baseURL}/${projectId}/users`, {
+  // Добавление пользователя в проект
+  async addUserToProject(projectId: string, userId: string): Promise<{ userProject: any }> {
+    const url = `${this.baseURL}/${projectId}/users`;
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`📡 [ProjectsAPI] POST добавление пользователя ${userId} в проект ${projectId}`);
+    }
+
+    const { data, error, status } = await fetchJson<{ userProject: any }>(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId }),
     });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Ошибка при добавлении пользователя в проект');
+    if (error) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error(`🚨 [ProjectsAPI] Ошибка добавления пользователя (status ${status}):`, error);
+      }
+      throw new Error(error || 'Не удалось добавить пользователя в проект');
     }
 
-    return response.json();
+    return data!;
   }
 
-  async removeUserFromProject(projectId: number, userId: number): Promise<{ message: string }> {
-    const response = await fetch(`${this.baseURL}/${projectId}/users/${userId}`, {
+  // Удаление пользователя из проекта
+  async removeUserFromProject(projectId: string, userId: string): Promise<{ message: string }> {
+    const url = `${this.baseURL}/${projectId}/users/${userId}`;
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`📡 [ProjectsAPI] DELETE пользователь ${userId} из проекта ${projectId}`);
+    }
+
+    const { data, error, status } = await fetchJson<{ message: string }>(url, {
       method: 'DELETE',
     });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Ошибка при удалении пользователя из проекта');
+    if (error) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error(`🚨 [ProjectsAPI] Ошибка удаления пользователя (status ${status}):`, error);
+      }
+      throw new Error(error || 'Не удалось удалить пользователя из проекта');
     }
 
-    return response.json();
+    return data!;
   }
 }
 

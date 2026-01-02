@@ -1,4 +1,5 @@
 // src/app/api/projects/user-count/route.ts
+
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
@@ -26,6 +27,7 @@ export async function GET(request: NextRequest) {
         userId,
       },
     });
+    // SELECT COUNT(*) FROM "ProjectMembership" WHERE "userId" = $1
 
     if (process.env.NODE_ENV === 'development') {
       console.log(`📊 [API /user-count] Пользователь ${userId} имеет ${count} проектов`);

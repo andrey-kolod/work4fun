@@ -57,7 +57,6 @@ export default function ProjectsClient({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
 
-  // Логирование для разработки
   useEffect(() => {
     if (process.env.NODE_ENV === 'development') {
       console.log('🎯 [ProjectsClient] Получены props:', {
@@ -69,10 +68,6 @@ export default function ProjectsClient({
         maxAllowedProjects,
         errorParams,
       });
-
-      if (projectsArray.length === 1) {
-        console.log('🎯 [ProjectsClient] Авто-выбор первого проекта:', projectsArray[0].id);
-      }
     }
   }, [
     projectsArray,
@@ -84,7 +79,6 @@ export default function ProjectsClient({
     errorParams,
   ]);
 
-  // Обработка ошибок из URL
   useEffect(() => {
     let errorTimer: NodeJS.Timeout;
     let infoTimer: NodeJS.Timeout;
@@ -99,10 +93,6 @@ export default function ProjectsClient({
             'Для создания нового проекта передайте владение одним из существующих проектов.'
           );
         }, 0);
-
-        if (process.env.NODE_ENV === 'development') {
-          console.warn(`🚫 [ProjectsClient] Ошибка из URL: ${message}`);
-        }
 
         infoTimer = setTimeout(() => {
           setInfoMessage(null);
@@ -135,24 +125,14 @@ export default function ProjectsClient({
     }
 
     setIsLoading(true);
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`➡️ [ProjectsClient] Переход в проект: ${selectedProjectId}`);
-    }
     router.push(`/tasks?projectId=${selectedProjectId}`);
   }, [selectedProjectId, router]);
 
   const handleCreateProject = useCallback(async () => {
     setIsCreating(true);
-
-    // [ИСПРАВЛЕНИЕ] Все пользователи используют один путь
     const createPath = '/projects/create';
-
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`✅ [ProjectsClient] ${userRole} создает проект по пути: ${createPath}`);
-    }
-
     router.push(createPath);
-  }, [router, userRole]);
+  }, [router]);
 
   const getProjectRoleDisplay = useCallback((role: Project['currentUserRole']) => {
     switch (role) {
@@ -170,7 +150,7 @@ export default function ProjectsClient({
   }, []);
 
   const getUserRoleDisplay = useCallback((role: 'SUPER_ADMIN' | 'USER') => {
-    return role === 'SUPER_ADMIN' ? '🔧 Супер-администратор' : '📝 Пользователь';
+    return role === 'SUPER_ADMIN' ? '🛡️ Супер-админ' : '👤 Пользователь';
   }, []);
 
   const handleProjectSelect = useCallback((projectId: string) => {
@@ -186,6 +166,32 @@ export default function ProjectsClient({
     },
     [handleProjectSelect]
   );
+
+  // Функция для отображения счетчика проектов
+  const renderProjectCounter = () => {
+    // Супер-админы не ограничены
+    if (userRole === 'SUPER_ADMIN') {
+      return (
+        <div className="text-sm text-purple-600 mt-2">
+          <span className="inline-flex items-center gap-1">
+            Неограниченное количество и доступ ко всем проектам
+          </span>
+        </div>
+      );
+    }
+
+    // Пользователь достиг лимита
+    if (!canCreateProject) {
+      return null;
+    }
+    return (
+      <div className={`text-sm text-purple-600 mt-2`}>
+        <span className="inline-flex items-center gap-1">
+          Доступно проектов: {userOwnedProjectsCount}/{maxAllowedProjects}
+        </span>
+      </div>
+    );
+  };
 
   return (
     <div className="w-full max-w-2xl mx-auto">
@@ -223,51 +229,48 @@ export default function ProjectsClient({
           <div className="inline-block px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm font-medium mt-2">
             {getUserRoleDisplay(userRole)}
           </div>
+
+          {renderProjectCounter()}
         </div>
 
         {projectsArray.length === 0 ? (
-          <div className="text-center py-12">
+          <div className="text-center">
             <div className="text-5xl mb-4">📁</div>
             <h3 className="text-xl font-semibold text-gray-900 mb-3">У вас пока нет проектов</h3>
             <p className="text-gray-600 mb-6">
               Создайте свой первый проект или попросите приглашение
             </p>
 
-            {userRole === 'SUPER_ADMIN' ? (
-              <button
-                onClick={() => router.push('/admin')}
-                className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-                aria-label="Перейти в админ-панель"
-              >
-                В админ-панель
-              </button>
-            ) : canCreateProject ? (
-              <button
-                onClick={handleCreateProject}
-                disabled={isCreating}
-                className="px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                aria-label="Создать первый проект"
-              >
-                {isCreating ? (
-                  <>
-                    <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                    Переход...
-                  </>
-                ) : (
-                  '✨ Создать первый проект'
-                )}
-              </button>
+            {canCreateProject ? (
+              <div className="space-y-4">
+                <button
+                  onClick={handleCreateProject}
+                  disabled={isCreating}
+                  className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-label="Создать первый проект"
+                >
+                  {isCreating ? (
+                    <>
+                      <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                      Переход...
+                    </>
+                  ) : (
+                    '✨ Создать первый проект'
+                  )}
+                </button>
+                {/* Информация о лимите для первого проекта */}
+              </div>
             ) : (
               <div className="space-y-4">
                 <p className="text-gray-600">
-                  Лимит проектов достигнут ({userOwnedProjectsCount}/3)
+                  Лимит проектов достигнут ({userOwnedProjectsCount}/{maxAllowedProjects})
                 </p>
                 <button
                   disabled
                   className="px-6 py-3 bg-gray-400 text-white rounded-lg cursor-not-allowed opacity-50"
                   aria-label="Лимит проектов достигнут"
                 >
-                  Лимит: {userOwnedProjectsCount}/3
+                  Лимит: {userOwnedProjectsCount}/{maxAllowedProjects}
                 </button>
               </div>
             )}
@@ -331,7 +334,7 @@ export default function ProjectsClient({
             <button
               onClick={handleGoToProject}
               disabled={!selectedProjectId || isLoading}
-              className="w-full bg-purple-600 text-white py-3 px-4 rounded-lg font-semibold hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mb-6 flex items-center justify-center gap-2"
+              className="w-full bg-purple-600 text-white py-3 px-4 rounded-lg font-semibold hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mb-4 flex items-center justify-center gap-2"
               aria-label={selectedProjectId ? 'Перейти к выбранному проекту' : 'Выберите проект'}
             >
               {isLoading ? (
@@ -345,65 +348,48 @@ export default function ProjectsClient({
             </button>
 
             <div className="text-center">
-              {userRole === 'SUPER_ADMIN' || canCreateProject ? (
-                <button
-                  onClick={handleCreateProject}
-                  disabled={isCreating}
-                  className="text-sm font-medium text-purple-600 hover:text-purple-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1 mx-auto"
-                  aria-label="Создать новый проект"
-                >
-                  {isCreating ? (
-                    <>
-                      <div className="w-3 h-3 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
-                      Переход...
-                    </>
-                  ) : (
-                    <>
-                      <svg
-                        className="w-4 h-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M12 4v16m8-8H4"
-                        />
-                      </svg>
-                      Создать новый проект
-                    </>
-                  )}
-                </button>
+              {canCreateProject ? (
+                <div className="space-y-2">
+                  <button
+                    onClick={handleCreateProject}
+                    disabled={isCreating}
+                    className="text-sm font-medium text-purple-600 hover:text-purple-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1 mx-auto"
+                    aria-label="Создать новый проект"
+                  >
+                    {isCreating ? (
+                      <>
+                        <div className="w-3 h-3 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+                        Переход...
+                      </>
+                    ) : (
+                      <>
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M12 4v16m8-8H4"
+                          />
+                        </svg>
+                        Создать новый проект
+                      </>
+                    )}
+                  </button>
+                </div>
               ) : (
-                <p className="text-sm text-gray-500">
-                  Лимит проектов достигнут ({userOwnedProjectsCount}/3)
-                </p>
+                <div className="space-y-1">
+                  <p className="text-sm text-red-600 cursor-default mx-auto">
+                    Лимит проектов достигнут ({userOwnedProjectsCount}/{maxAllowedProjects})
+                  </p>
+                </div>
               )}
             </div>
           </>
-        )}
-
-        {process.env.NODE_ENV === 'development' && (
-          <div className="mt-8 p-4 bg-gray-50 border border-gray-200 rounded-lg">
-            <h4 className="text-sm font-medium text-gray-700 mb-2">Отладка:</h4>
-            <div className="text-xs text-gray-600 space-y-1">
-              <p>
-                <strong>Выбранный проект:</strong> {selectedProjectId || 'нет'}
-              </p>
-              <p>
-                <strong>Проектов всего:</strong> {projectsArray.length}
-              </p>
-              <p>
-                <strong>Может создать проект:</strong> {canCreateProject ? 'Да' : 'Нет'}
-              </p>
-              <p>
-                <strong>Проектов как владелец:</strong> {userOwnedProjectsCount}/
-                {maxAllowedProjects}
-              </p>
-            </div>
-          </div>
         )}
       </div>
     </div>

@@ -1,39 +1,26 @@
 // src/components/forms/ProjectForm.tsx
-// [ИСПРАВЛЕНО] Добавлен пропс redirectPath и улучшена логика навигации
 
 'use client';
 
 import { useForm, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Input } from '@/components/ui/Input';
-import { Textarea } from '@/components/ui/Textarea';
-import { Button } from '@/components/ui/Button';
+import { Input, Textarea, Button } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 
-// Схема строго по PRD 3.2.1
-const projectSchema = z.object({
-  name: z
-    .string()
-    .min(3, 'Название должно содержать минимум 3 символа')
-    .max(100, 'Название слишком длинное (максимум 100 символов)'),
-  description: z.string().max(500, 'Описание не должно превышать 500 символов').optional(),
-});
+import { projectFormSchema, ProjectFormData, getDefaultProjectFormValues } from '@/schemas/project';
+import { fetchJson } from '@/lib/api-client';
 
-type ProjectFormData = z.infer<typeof projectSchema>;
-
-// [ИСПРАВЛЕНИЕ] Добавляем интерфейс для пропсов
 interface ProjectFormProps {
-  redirectPath?: string; // Куда перенаправлять после успешного создания
-  showCancelButton?: boolean; // Показывать ли кнопку "Отмена"
-  onSuccess?: (projectId: string) => void; // Коллбэк при успешном создании
-  onCancel?: () => void; // Коллбэк при отмене
+  redirectPath?: string;
+  showCancelButton?: boolean;
+  onSuccess?: (projectId: string) => void;
+  onCancel?: () => void;
 }
 
 export function ProjectForm({
-  redirectPath = '/projects', // [ИСПРАВЛЕНИЕ] Значение по умолчанию
+  redirectPath = '/projects',
   showCancelButton = true,
   onSuccess,
   onCancel,
@@ -42,129 +29,115 @@ export function ProjectForm({
   const { addToast } = useToast();
   const [loading, setLoading] = useState(false);
 
+  const [isNameFocused, setIsNameFocused] = useState(false);
+  const [isDescriptionFocused, setIsDescriptionFocused] = useState(false);
+
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting },
-    reset,
+    formState: { errors, isSubmitting, isValid },
+    watch,
   } = useForm<ProjectFormData>({
-    resolver: zodResolver(projectSchema),
-    defaultValues: {
-      name: '',
-      description: undefined,
-    },
+    resolver: zodResolver(projectFormSchema),
+    mode: 'onChange',
+    defaultValues: getDefaultProjectFormValues(),
   });
+
+  const nameValue = watch('name');
+  const descriptionValue = watch('description') ?? '';
+  const nameLength = nameValue?.length || 0;
+  const descriptionLength = descriptionValue.length;
+
+  const isNameValid = nameLength >= 3 && nameLength <= 100 && !errors.name;
+  const hasNameError = !!errors.name;
+
+  const shouldNameLabelBeRed = !isNameValid;
+
+  const showNameHint = isNameFocused || hasNameError;
+  const showDescriptionHint = isDescriptionFocused || !!errors.description;
+
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[DEV] ProjectForm: isValid=', isValid);
+    console.log('[DEV] ProjectForm: isNameValid=', isNameValid);
+    console.log('[DEV] ProjectForm: errors=', errors);
+    console.log(
+      '[DEV] ProjectForm: name focused=',
+      isNameFocused,
+      'description focused=',
+      isDescriptionFocused
+    );
+  }
 
   const onSubmit: SubmitHandler<ProjectFormData> = async (data) => {
     setLoading(true);
 
     if (process.env.NODE_ENV === 'development') {
-      console.log('🛠️ [ProjectForm] Начало создания проекта');
-      console.log('📤 [ProjectForm] Данные формы:', data);
+      console.log('📤 [ProjectForm] Отправка данных создания проекта:', data);
     }
 
     try {
-      const response = await fetch('/api/projects', {
+      const {
+        data: result,
+        error,
+        status,
+      } = await fetchJson<{ project: { id: string; name: string } }>('/api/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: data.name.trim(),
-          description: data.description ? data.description.trim() : undefined,
+          name: data.name,
+          description: data.description || null,
         }),
       });
 
-      if (!response.ok) {
-        let errData;
-        try {
-          errData = await response.json();
-        } catch {
-          errData = { error: `Ошибка сервера ${response.status}` };
+      if (error) {
+        const errorMessage =
+          status === 403
+            ? 'Достигнут лимит в 3 проекта. Передайте владение одним из существующих.'
+            : error || 'Неизвестная ошибка сервера';
+
+        if (process.env.NODE_ENV === 'development') {
+          console.error(`🚨 [ProjectForm] Ошибка создания проекта (status ${status}):`, error);
         }
 
-        // [ИСПРАВЛЕНИЕ] Обработка специфичных ошибок
-        if (
-          errData.error?.includes('Превышен лимит') ||
-          errData.error?.includes('Лимит проектов')
-        ) {
-          addToast({
-            type: 'error',
-            title: 'Лимит проектов',
-            description:
-              errData.error ||
-              'Достигнут лимит в 3 проекта. Чтобы создать новый, передайте владение одним из существующих проектов.',
-          });
-
-          // Если достигнут лимит, перенаправляем на страницу проектов
-          if (errData.details?.includes('лимит')) {
-            setTimeout(() => {
-              router.push('/projects');
-            }, 2000);
-          }
-          return;
-        }
-
-        throw new Error(errData.error || errData.details || 'Ошибка создания проекта');
+        addToast({
+          type: 'error',
+          title: 'Не удалось создать проект',
+          description: errorMessage,
+        });
+        return;
       }
 
-      const result = await response.json();
+      if (!result?.project) {
+        throw new Error('Сервер не вернул данные проекта');
+      }
 
       if (process.env.NODE_ENV === 'development') {
-        console.log('✅ [ProjectForm] Проект успешно создан:', result);
-        console.log(`📊 [ProjectForm] ID проекта: ${result.project?.id}`);
-        console.log(`📍 [ProjectForm] Перенаправление на: ${redirectPath}`);
+        console.log('✅ [ProjectForm] Проект успешно создан:', result.project);
       }
 
       addToast({
         type: 'success',
         title: 'Проект создан!',
-        description: `Проект "${result.project?.name || 'Новый проект'}" успешно создан.`,
+        description: `Проект "${result.project.name}" успешно создан.`,
       });
 
-      reset();
-
-      // [ИСПРАВЛЕНИЕ] Вызываем коллбэк или выполняем навигацию
-      if (onSuccess && result.project?.id) {
+      if (onSuccess && result.project.id) {
         onSuccess(result.project.id);
-      } else {
-        // Варианты навигации в зависимости от redirectPath
-        if (redirectPath === '/projects') {
-          // Просто перенаправляем на страницу проектов
-          router.push('/projects');
-        } else if (redirectPath === '/tasks') {
-          // Перенаправляем на задачи с projectId
-          if (result.project?.id) {
-            router.push(`/tasks?projectId=${result.project.id}`);
-          } else {
-            router.push('/projects');
-          }
-        } else {
-          // Кастомный путь
-          router.push(redirectPath);
-        }
-        router.refresh();
+        setLoading(false);
+        return;
       }
-    } catch (error: any) {
-      console.error('💥 [ProjectForm] Ошибка:', error);
 
-      // [ИСПРАВЛЕНИЕ] Более информативные сообщения об ошибках
-      let errorMessage = 'Не удалось создать проект. Попробуйте позже.';
-
-      if (error.message.includes('Название проекта обязательно')) {
-        errorMessage = 'Название проекта обязательно. Введите название проекта.';
-      } else if (
-        error.message.includes('Превышен лимит') ||
-        error.message.includes('Лимит проектов')
-      ) {
-        errorMessage =
-          'Достигнут лимит в 3 проекта. Чтобы создать новый, передайте владение одним из существующих проектов.';
-      } else if (error.message) {
-        errorMessage = error.message;
+      router.push(redirectPath);
+      router.refresh();
+    } catch (unexpectedError: any) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('💥 [ProjectForm] Неожиданная ошибка при создании проекта:', unexpectedError);
       }
 
       addToast({
         type: 'error',
-        title: 'Ошибка создания',
-        description: errorMessage,
+        title: 'Ошибка',
+        description: unexpectedError.message || 'Не удалось создать проект. Попробуйте позже.',
       });
     } finally {
       setLoading(false);
@@ -179,53 +152,123 @@ export function ProjectForm({
     }
   };
 
+  const getNameMessage = () => {
+    return errors.name?.message || 'Минимум 3 символа, максимум 100 символов';
+  };
+
+  const getNameMessageColor = () => (hasNameError ? 'text-red-600' : 'text-gray-500');
+
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-      <div>
+      {/* Название проекта */}
+      <div className="space-y-1">
+        <div className="flex justify-between items-center mb-2">
+          <label
+            className={`block text-sm font-medium ${shouldNameLabelBeRed ? 'text-red-600' : 'text-gray-700'}`}
+            htmlFor="name"
+          >
+            Название проекта *
+          </label>
+        </div>
+
         <Input
-          label="Название проекта *"
-          placeholder="Например: Wildberries 2025"
+          id="name"
+          placeholder="Введите название проекта..."
           {...register('name')}
-          error={errors.name?.message}
           disabled={loading}
           required
           autoFocus
+          error={hasNameError}
+          success={isNameValid}
+          onFocus={() => setIsNameFocused(true)}
+          onBlur={() => setIsNameFocused(false)}
         />
-        <p className="mt-1 text-xs text-gray-500">Минимум 3 символа, максимум 100 символов</p>
+
+        <div className="min-h-[1.25rem]">
+          <div
+            className={`transition-all duration-300 ease-in-out ${
+              showNameHint ? 'opacity-100 h-auto' : 'opacity-0 h-0 overflow-hidden'
+            }`}
+          >
+            <p className={`text-xs ${getNameMessageColor()} pt-1`}>{getNameMessage()}</p>
+          </div>
+        </div>
       </div>
 
-      <div>
+      {/* Описание проекта */}
+      <div className="space-y-1">
+        <div className="flex justify-between items-center mb-2">
+          <label
+            className={`block text-sm font-medium ${!!errors.description ? 'text-red-600' : 'text-gray-700'}`}
+            htmlFor="description"
+          >
+            Описание проекта
+          </label>
+
+          <div
+            className={`transition-all duration-300 ease-in-out ${
+              isDescriptionFocused || !!errors.description || descriptionLength > 0
+                ? 'opacity-100'
+                : 'opacity-0 pointer-events-none'
+            }`}
+          >
+            <span
+              className={`text-xs ${
+                descriptionLength > 500
+                  ? 'text-red-600 font-semibold'
+                  : descriptionLength > 450
+                    ? 'text-yellow-600'
+                    : 'text-gray-500'
+              }`}
+            >
+              {descriptionLength}/500
+            </span>
+          </div>
+        </div>
+
         <Textarea
-          label="Описание проекта"
+          id="description"
           placeholder="Краткое описание проекта..."
           rows={4}
           {...register('description')}
-          error={errors.description?.message}
           disabled={loading}
+          error={!!errors.description}
+          success={false}
+          onFocus={() => setIsDescriptionFocused(true)}
+          onBlur={() => setIsDescriptionFocused(false)}
         />
-        <p className="mt-1 text-xs text-gray-500">Необязательное поле, максимум 500 символов</p>
+
+        <div className="min-h-[1.25rem]">
+          <div
+            className={`transition-all duration-300 ease-in-out ${
+              showDescriptionHint ? 'opacity-100 h-auto' : 'opacity-0 h-0 overflow-hidden'
+            }`}
+          >
+            <p
+              className={`text-xs ${!!errors.description ? 'text-red-600' : 'text-gray-500'} pt-1`}
+            >
+              Необязательное поле, максимум 500 символов
+            </p>
+            {descriptionLength > 500 && (
+              <p className="text-xs text-red-600 font-medium pt-1">
+                Превышен лимит на {descriptionLength - 500} символов
+              </p>
+            )}
+          </div>
+        </div>
       </div>
 
-      {/* [ИСПРАВЛЕНИЕ] Информация для разработки */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
-          <p className="text-xs text-blue-800">
-            <strong>Отладка:</strong> После создания перенаправление на: <code>{redirectPath}</code>
-          </p>
-        </div>
-      )}
-
+      {/* Кнопки */}
       <div className="flex justify-end gap-4 pt-6">
         {showCancelButton && (
           <Button type="button" variant="outline" onClick={handleCancel} disabled={loading}>
             Отмена
           </Button>
         )}
-
         <Button
           type="submit"
           loading={loading || isSubmitting}
-          disabled={loading || isSubmitting}
+          disabled={loading || isSubmitting || !isValid}
           className="min-w-[120px]"
         >
           {loading ? 'Создаём...' : 'Создать проект'}

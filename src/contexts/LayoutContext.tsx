@@ -14,11 +14,9 @@ const LayoutContext = createContext<LayoutContextType | undefined>(undefined);
 export function LayoutProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
 
-  // Страницы без хедера (публичные)
   const hideHeaderPaths = ['/', '/login', '/register', '/password/reset'];
   const shouldShowHeader = !hideHeaderPaths.includes(pathname);
 
-  // Страницы без сайдбара
   const noSidebarPaths = ['/projects', '/project-select'];
   const shouldShowSidebar = shouldShowHeader && !noSidebarPaths.includes(pathname);
 

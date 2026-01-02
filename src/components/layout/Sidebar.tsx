@@ -1,6 +1,4 @@
 // src/components/layout/Sidebar.tsx
-
-// src/components/layout/Sidebar.tsx
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -11,6 +9,18 @@ import { useAppStore } from '@/store/useAppStore';
 import { cn } from '@/lib/utils';
 import { useLayout } from '@/contexts/LayoutContext';
 
+const ANIMATION_DURATION = 400;
+const ANIMATION_DELAY_BASE = 150;
+const ANIMATION_DELAY_STEP = 50;
+
+interface CustomSessionUser {
+  id: string;
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  role: string;
+}
+
 const Sidebar: React.FC = () => {
   const pathname = usePathname();
   const { data: session } = useSession();
@@ -20,12 +30,10 @@ const Sidebar: React.FC = () => {
   const [isVisible, setIsVisible] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
 
-  // Выносим useCallback ВНЕ условий
   const handleCloseSidebar = useCallback(() => {
     setSidebarOpen(false);
   }, [setSidebarOpen]);
 
-  // Управляем анимациями
   useEffect(() => {
     let timer: NodeJS.Timeout;
 
@@ -39,14 +47,12 @@ const Sidebar: React.FC = () => {
       timer = setTimeout(() => {
         setIsVisible(false);
         setIsClosing(false);
-      }, 400);
+      }, ANIMATION_DURATION);
     };
 
     if (shouldShowSidebar && sidebarOpen) {
-      // Открываем - используем setTimeout для асинхронности
       timer = setTimeout(handleOpen, 0);
     } else if (isVisible) {
-      // Закрываем - сначала контент, потом фон
       handleClose();
     }
 
@@ -55,31 +61,90 @@ const Sidebar: React.FC = () => {
     };
   }, [sidebarOpen, shouldShowSidebar, isVisible]);
 
-  // Если сайдбар не должен показываться
   if (!shouldShowSidebar || !isVisible) {
     return null;
   }
 
-  const userRole = session?.user ? (session.user as any).role : null;
-  const isAdmin = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN';
+  const user = session?.user as CustomSessionUser | undefined;
+  const userRole = user?.role || null;
 
   const navItems = [
-    { name: 'Dashboard', href: '/dashboard', icon: '📊', visible: true },
+    { name: 'Дашборд', href: '/dashboard', icon: '📊' },
     {
       name: 'Задачи',
       href: selectedProject ? `/tasks?projectId=${selectedProject.id}` : '/tasks',
       icon: '✅',
-      visible: true,
     },
-    { name: 'Проекты', href: '/projects', icon: '📁', visible: true },
-    { name: 'Группы', href: '/admin/groups', icon: '👥', visible: isAdmin },
-    { name: 'Пользователи', href: '/admin/users', icon: '👤', visible: isAdmin },
-    { name: 'Админ панель', href: '/admin', icon: '⚙️', visible: isAdmin },
+    { name: 'Проекты', href: '/projects', icon: '📁' },
   ];
+
+  const getDelayClass = (index: number): string => {
+    const delay = ANIMATION_DELAY_BASE + index * ANIMATION_DELAY_STEP;
+
+    const delayClasses: Record<number, string> = {
+      150: 'delay-150',
+      200: 'delay-200',
+      250: 'delay-250',
+      300: 'delay-300',
+      350: 'delay-350',
+      400: 'delay-400',
+      450: 'delay-450',
+      500: 'delay-500',
+    };
+
+    return delayClasses[delay] || '';
+  };
+
+  const getUserInitials = (): string => {
+    if (!user) return 'Г';
+
+    if (user.firstName) {
+      return user.firstName.charAt(0).toUpperCase();
+    }
+
+    if (user.email) {
+      return user.email.charAt(0).toUpperCase();
+    }
+
+    return 'П';
+  };
+
+  const getDisplayName = (): string => {
+    if (!user) return 'Гость';
+
+    if (user.firstName) {
+      return user.firstName;
+    }
+
+    if (user.email) {
+      return user.email.split('@')[0];
+    }
+
+    return 'Пользователь';
+  };
+
+  const getDisplayRole = (): string => {
+    if (!userRole) return 'гость';
+
+    const roleMap: Record<string, string> = {
+      SUPER_ADMIN: 'супер-админ',
+      ADMIN: 'администратор',
+      USER: 'пользователь',
+      PROJECT_OWNER: 'владелец проекта',
+      PROJECT_ADMIN: 'админ проекта',
+      MEMBER: 'участник',
+      VIEWER: 'наблюдатель',
+    };
+
+    return roleMap[userRole] || userRole.toLowerCase().replace('_', ' ');
+  };
+
+  const handleSettingsClick = () => {
+    window.location.href = '/settings';
+  };
 
   return (
     <>
-      {/* Overlay фон - закрывается последним */}
       <div
         className={`
           fixed inset-0 bg-black/50 z-40 lg:bg-transparent
@@ -89,21 +154,20 @@ const Sidebar: React.FC = () => {
         `}
         onClick={handleCloseSidebar}
         aria-hidden="true"
+        role="presentation"
       />
 
-      {/* Сам сайдбар - закрывается первым */}
       <aside
         className={`
           fixed inset-y-0 left-0 z-50 w-64 
           bg-white border-r border-gray-200 shadow-lg
-          transform transition-all duration-400 ease-in-out
+          transform transition-all duration-${ANIMATION_DURATION} ease-in-out
           ${!isClosing ? 'translate-x-0' : '-translate-x-full'}
         `}
         aria-label="Боковая панель навигации"
         aria-hidden={!sidebarOpen}
       >
         <div className="flex flex-col h-full">
-          {/* Заголовок с небольшой задержкой при открытии */}
           <div
             className={`
               p-6 border-b border-gray-200
@@ -115,75 +179,77 @@ const Sidebar: React.FC = () => {
             <p className="text-sm text-gray-600 mt-1">Управление проектами</p>
           </div>
 
-          {/* Навигация */}
           <nav className="flex-1 p-4 space-y-2" aria-label="Основная навигация">
-            {navItems
-              .filter((item) => item.visible)
-              .map((item, index) => (
+            {navItems.map((item, index) => {
+              const baseHref = item.href.split('?')[0];
+              const isActive = pathname === baseHref || pathname.startsWith(`${baseHref}/`);
+
+              return (
                 <Link
                   key={item.name}
                   href={item.href}
                   className={cn(
                     'flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-300',
-                    pathname.startsWith(item.href.split('?')[0])
+                    isActive
                       ? 'bg-purple-50 text-purple-700 border border-purple-200'
-                      : 'text-gray-700 hover:bg-gray-100',
-                    // Анимация появления элементов с задержкой
+                      : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900',
                     !isClosing
-                      ? `opacity-100 translate-x-0 delay-${150 + index * 50}`
+                      ? `opacity-100 translate-x-0 ${getDelayClass(index)}`
                       : 'opacity-0 -translate-x-4'
                   )}
                   onClick={handleCloseSidebar}
                   aria-label={`Перейти к ${item.name}`}
-                  aria-current={pathname.startsWith(item.href.split('?')[0]) ? 'page' : undefined}
+                  aria-current={isActive ? 'page' : undefined}
                 >
-                  <span className="text-lg">{item.icon}</span>
+                  <span className="text-lg" aria-hidden="true">
+                    {item.icon}
+                  </span>
                   <span className="font-medium">{item.name}</span>
                 </Link>
-              ))}
+              );
+            })}
           </nav>
 
-          {/* Пользователь */}
           <div
             className={`
-              p-4 border-t border-gray-200
+              p-4 border-t border-gray-200 bg-gray-50
               transition-all duration-300
               ${!isClosing ? 'opacity-100 translate-y-0 delay-300' : 'opacity-0 translate-y-2'}
             `}
           >
-            {session?.user ? (
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
-                  <span className="text-purple-600 font-medium">
-                    {(() => {
-                      const user = session.user as any;
-                      return user.firstName?.[0] || user.email?.[0] || 'U';
-                    })()}
-                  </span>
-                </div>
-                <div>
-                  <p className="font-medium text-gray-900 text-sm">
-                    {(() => {
-                      const user = session.user as any;
-                      return user.firstName || user.email || 'Пользователь';
-                    })()}
-                  </p>
-                  <p className="text-xs text-gray-500 capitalize">
-                    {userRole?.toLowerCase().replace('_', ' ') || 'user'}
-                  </p>
+            <div className="flex items-center gap-3">
+              <div
+                className="w-10 h-10 bg-gradient-to-br from-purple-100 to-blue-100 rounded-full flex items-center justify-center shadow-sm cursor-pointer"
+                aria-hidden="true"
+                onClick={handleSettingsClick}
+                title="Настройки профиля"
+              >
+                <span className="text-lg font-semibold text-purple-700">{getUserInitials()}</span>
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p
+                      className="font-medium text-gray-900 text-sm truncate"
+                      title={getDisplayName()}
+                    >
+                      {getDisplayName()}
+                    </p>
+                    <p className="text-xs text-gray-500 truncate" title={getDisplayRole()}>
+                      {getDisplayRole()}
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleSettingsClick}
+                    className="ml-2 p-1 text-gray-500 hover:text-purple-600 hover:bg-purple-50 rounded transition-colors"
+                    aria-label="Настройки профиля"
+                    title="Настройки"
+                  >
+                    ⚙️
+                  </button>
                 </div>
               </div>
-            ) : (
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
-                  <span className="text-gray-600 font-medium">👤</span>
-                </div>
-                <div>
-                  <p className="font-medium text-gray-900 text-sm">Гость</p>
-                  <p className="text-xs text-gray-500">guest</p>
-                </div>
-              </div>
-            )}
+            </div>
           </div>
         </div>
       </aside>

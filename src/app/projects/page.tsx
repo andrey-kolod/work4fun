@@ -72,6 +72,16 @@ export default async function ProjectSelectPage({
         orderBy: { name: 'asc' },
       });
 
+      // SELECT
+      //   p.*,
+      //   (SELECT COUNT(*) FROM "ProjectMembership" pm WHERE pm."projectId" = p.id) as members_count,
+      //   (SELECT COUNT(*) FROM "Task" t WHERE t."projectId" = p.id) as tasks_count,
+      //   u."firstName", u."lastName", u.email
+      // FROM "Project" p
+      // LEFT JOIN "User" u ON p."ownerId" = u.id
+      // WHERE p.status = 'ACTIVE'
+      // ORDER BY p.name ASC;
+
       if (process.env.NODE_ENV === 'development') {
         console.log(`✅ [projects/page] Найдено проектов: ${rawProjects.length}`);
       }
@@ -103,6 +113,19 @@ export default async function ProjectSelectPage({
         orderBy: { project: { name: 'asc' } },
       });
 
+      // SELECT
+      //   pm.role,
+      //   p.*,
+      //   (SELECT COUNT(*) FROM "ProjectMembership" pm2 WHERE pm2."projectId" = p.id) as members_count,
+      //   (SELECT COUNT(*) FROM "Task" t WHERE t."projectId" = p.id) as tasks_count,
+      //   u."firstName", u."lastName", u.email
+      // FROM "ProjectMembership" pm
+      // JOIN "Project" p ON pm."projectId" = p.id
+      // LEFT JOIN "User" u ON p."ownerId" = u.id
+      // WHERE pm."userId" = 'user-id-here'
+      //   AND p.status = 'ACTIVE'
+      // ORDER BY p.name ASC;
+
       if (process.env.NODE_ENV === 'development') {
         console.log(`✅ [projects/page] Найдено членств в проектах: ${userMemberships.length}`);
       }
@@ -117,7 +140,7 @@ export default async function ProjectSelectPage({
     projects = [];
   }
 
-  // Получаем параметры из URL
+  // Получить параметры из URL
   const resolvedSearchParams = await searchParams;
   const fromLogin = resolvedSearchParams.fromLogin === 'true';
   const directAccess = resolvedSearchParams.direct === 'true';

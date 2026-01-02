@@ -40,7 +40,7 @@ async function main() {
       passwordHash,
       role: Role.SUPER_ADMIN,
       emailVerified: true,
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=superadmin',
+      avatar: 'https://api.dicebear.com/7.x/avataaars/png?seed=superadmin',
     },
   });
 
@@ -54,7 +54,7 @@ async function main() {
       passwordHash,
       role: Role.USER,
       emailVerified: true,
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=andrey',
+      avatar: 'https://api.dicebear.com/7.x/avataaars/png?seed=andrey',
     },
   });
 
@@ -68,7 +68,7 @@ async function main() {
       passwordHash,
       role: Role.USER,
       emailVerified: true,
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=maria',
+      avatar: 'https://api.dicebear.com/7.x/avataaars/png?seed=maria',
     },
   });
 
@@ -82,7 +82,7 @@ async function main() {
       passwordHash,
       role: Role.USER,
       emailVerified: true,
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=dmitry',
+      avatar: 'https://api.dicebear.com/7.x/avataaars/png?seed=dmitry',
     },
   });
 
@@ -96,7 +96,7 @@ async function main() {
       passwordHash,
       role: Role.USER,
       emailVerified: true,
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=olga',
+      avatar: 'https://api.dicebear.com/7.x/avataaars/png?seed=olga',
     },
   });
 
@@ -110,7 +110,7 @@ async function main() {
       passwordHash,
       role: Role.USER,
       emailVerified: true,
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=ivan',
+      avatar: 'https://api.dicebear.com/7.x/avataaars/png?seed=ivan',
     },
   });
 
@@ -124,7 +124,7 @@ async function main() {
       passwordHash,
       role: Role.USER,
       emailVerified: true,
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=ekaterina',
+      avatar: 'https://api.dicebear.com/7.x/avataaars/png?seed=ekaterina',
     },
   });
 

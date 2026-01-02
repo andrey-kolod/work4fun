@@ -1,93 +1,88 @@
 /* src/app/globals.css */
+
+/* 1. Tailwind CSS директивы - ОСНОВА */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Сброс стилей для body */
+/* 2. Базовые сбросы и глобальные стили */
+:root {
+  --scrollbar-thumb: #d8b4fe; /* primary-300 */
+  --scrollbar-track: #f1f5f9; /* secondary-100 */
+  --scrollbar-thumb-hover: #c084fc; /* primary-400 */
+}
+
 body {
   margin: 0;
   padding: 0;
   font-family:
     system-ui,
     -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    Arial,
     sans-serif;
-  /* Убрали background-color: #f9fafb; */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Kanban Board Styles */
-.kanban-board {
-  font-family: 'Inter', sans-serif;
+/* 3. Стили скроллбара (опционально) */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 }
 
-/* Line clamp utilities с полной поддержкой */
-.line-clamp-1 {
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 1;
-  line-clamp: 1;
-}
-
-.line-clamp-2 {
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-}
-
-.line-clamp-3 {
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  line-clamp: 3;
-}
-
-/* Стили для полосы прокрутки */
-::-webkit-scrollbar {
+.scrollbar-thin::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
-::-webkit-scrollbar-track {
-  background: #f1f1f1;
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
   border-radius: 4px;
 }
 
-::-webkit-scrollbar-thumb {
-  background: #d8b4fe;
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
   border-radius: 4px;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: #c084fc;
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
 }
 
-/* Стили для колонок Kanban */
-.kanban-column {
-  scrollbar-width: thin;
-  scrollbar-color: #d8b4fe #f1f1f1;
+/* 4. Анимации */
+@keyframes gentle-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
 }
 
-/* Анимации для drag & drop */
+/* 5. Drag & Drop стили (опционально) */
 .drag-preview {
   opacity: 0.8;
   transform: rotate(2deg);
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
 }
 
-/* Утилитные классы */
-.text-balance {
-  text-wrap: balance;
+.drag-overlay {
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  transform: rotate(2deg);
 }
 
-/* Плавные переходы */
-.transition-all-300 {
-  transition: all 300ms ease;
+/* 6. Карточки задач (опционально) */
+.task-card {
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
-/* Плавные переходы между страницами */
+/* 7. Плавные переходы страниц */
 .page-transition-enter {
   opacity: 0;
   transform: translateY(20px);
@@ -114,76 +109,27 @@ body {
     transform 300ms;
 }
 
-/* Стили для Kanban */
+/* 8. Только самые необходимые кастомные стили */
 .kanban-board {
-  min-height: calc(100vh - 64px);
+  font-family:
+    'Inter',
+    system-ui,
+    -apple-system,
+    sans-serif;
 }
 
-/* Кастомные стили для перетаскивания */
-.drag-overlay {
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-  transform: rotate(2deg);
+.kanban-column {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 }
 
-/* Анимация для пульсации */
-@keyframes gentle-pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.7;
-  }
+/* 9. Отключение outline для мыши, но сохранение для клавиатуры */
+:focus:not(:focus-visible) {
+  outline: none;
 }
 
-.animate-gentle-pulse {
-  animation: gentle-pulse 2s ease-in-out infinite;
-}
-
-/* Стили для карточек задач */
-.task-card {
-  backdrop-filter: blur(10px);
-}
-
-/* Глобальные стили фокуса — ЛИЛОВЫЕ для всего проекта */
-@layer base {
-  :focus-visible {
-    outline: 2px solid #a855f7 !important; /* твой primary-500 */
-    outline-offset: 2px !important;
-  }
-
-  /* Input'ы — убираем синий фон */
-  input:focus-visible {
-    outline: none !important;
-    box-shadow: 0 0 0 2px #a855f7/0.5 !important;
-  }
-
-  /* Кнопки */
-  button:focus-visible {
-    outline: 2px solid #a855f7 !important;
-    outline-offset: 2px !important;
-  }
-
-  /* Ссылки */
-  a:focus-visible {
-    outline: 2px solid #a855f7 !important;
-    outline-offset: 2px !important;
-    border-radius: 6px;
-  }
-  /* Единообразные закруглённые углы для всех интерактивных элементов */
-  @layer components {
-    input,
-    button,
-    select,      /* ← добавь */
-    textarea,    /* ← добавь */
-    [type='checkbox'],
-    [type='radio'] {
-      @apply rounded-md;
-    }
-
-    /* Ссылки тоже закругляем при фокусе */
-    a:focus-visible {
-      @apply rounded-md;
-    }
-  }
+/* 10. Улучшенное выделение текста */
+::selection {
+  background-color: rgba(168, 85, 247, 0.2);
+  color: inherit;
 }

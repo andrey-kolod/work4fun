@@ -1,5 +1,4 @@
 // ФАЙЛ: /src/lib/validations/auth.ts
-// НАЗНАЧЕНИЕ: Валидация (проверка) данных для аутентификации
 
 import { z } from 'zod';
 

@@ -1,30 +1,20 @@
 // src/store/useAppStore.ts
+
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { User, SimpleProject, Task, Group } from '@/types';
+import { User, SimpleProject } from '@/types'; // [ИЗМЕНЕНО] Убрали Task и Group — они не используются
 
 interface AppState {
-  // Пользователь
+  // Пользователь (из сессии NextAuth)
   currentUser: User | null;
   isAuthenticated: boolean;
 
-  // Выбранный проект
+  // Выбранный проект (для навигации по задачам, дашборду и т.д.)
   selectedProject: SimpleProject | null;
-
-  // Данные
-  users: User[];
-  projects: SimpleProject[];
-  groups: Group[];
-  tasks: Task[];
 
   // UI состояния
   sidebarOpen: boolean;
-  currentView: 'dashboard' | 'projects' | 'tasks' | 'users' | 'groups';
-  loading: {
-    users: boolean;
-    projects: boolean;
-    tasks: boolean;
-  };
+  currentView: 'dashboard' | 'projects' | 'tasks' | 'settings'; // [УЛУЧШЕНО] Оставили только актуальные views
 }
 
 interface AppActions {
@@ -35,26 +25,9 @@ interface AppActions {
   // Проект
   setSelectedProject: (project: SimpleProject | null) => void;
 
-  // Данные
-  setUsers: (users: User[]) => void;
-  setProjects: (projects: SimpleProject[]) => void;
-  setGroups: (groups: Group[]) => void;
-  setTasks: (tasks: Task[]) => void;
-
-  // Работа с задачами
-  addTask: (task: Task) => void;
-  updateTask: (taskId: number, updates: Partial<Task>) => void;
-  deleteTask: (taskId: number) => void;
-  refreshTasks: (projectId?: number) => Promise<void>;
-
   // UI
   setSidebarOpen: (open: boolean) => void;
   setCurrentView: (view: AppState['currentView']) => void;
-
-  // Дополнительные методы
-  addUser: (user: User) => void;
-  updateUser: (id: number, userData: Partial<User>) => void;
-  deleteUser: (id: number) => void;
 }
 
 export const useAppStore = create<AppState & AppActions>()(
@@ -64,20 +37,14 @@ export const useAppStore = create<AppState & AppActions>()(
       currentUser: null,
       isAuthenticated: false,
       selectedProject: null,
-      users: [],
-      projects: [],
-      groups: [],
-      tasks: [],
       sidebarOpen: false,
       currentView: 'dashboard',
-      loading: {
-        users: false,
-        projects: false,
-        tasks: false,
-      },
 
-      // Действия
+      // Действия с пользователем
       setCurrentUser: (user: User | null) => {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[AppStore] Установка текущего пользователя:', user?.email || 'null');
+        }
         set({
           currentUser: user,
           isAuthenticated: !!user,
@@ -85,103 +52,61 @@ export const useAppStore = create<AppState & AppActions>()(
       },
 
       logout: () => {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[AppStore] Выход из системы — полная очистка стора');
+        }
         set({
           currentUser: null,
           isAuthenticated: false,
           selectedProject: null,
-          users: [],
-          projects: [],
-          tasks: [],
+          sidebarOpen: false,
+          currentView: 'dashboard',
         });
       },
 
+      // Выбор проекта
       setSelectedProject: (project: SimpleProject | null) => {
-        console.log('[AppStore] Setting selected project:', project);
+        if (process.env.NODE_ENV === 'development') {
+          console.log(
+            '[AppStore] Выбор проекта:',
+            project?.name || 'null',
+            '(ID:',
+            project?.id || 'none',
+            ')'
+          );
+        }
         set({ selectedProject: project });
       },
 
-      setUsers: (users: User[]) => {
-        set({ users });
-      },
-
-      setProjects: (projects: SimpleProject[]) => {
-        set({ projects });
-      },
-
-      setGroups: (groups: Group[]) => {
-        set({ groups });
-      },
-
-      setTasks: (tasks: Task[]) => {
-        set({ tasks });
-      },
-
-      // 🔧 ДОБАВЛЕННЫЕ МЕТОДЫ ДЛЯ РАБОТЫ С ЗАДАЧАМИ
-      addTask: (task: Task) => {
-        set((state) => ({
-          tasks: [...state.tasks, task],
-        }));
-      },
-
-      updateTask: (taskId: number, updates: Partial<Task>) => {
-        set((state) => ({
-          tasks: state.tasks.map((task) => (task.id === taskId ? { ...task, ...updates } : task)),
-        }));
-      },
-
-      deleteTask: (taskId: number) => {
-        set((state) => ({
-          tasks: state.tasks.filter((task) => task.id !== taskId),
-        }));
-      },
-
-      refreshTasks: async (projectId?: number) => {
-        try {
-          const currentProjectId = projectId || get().selectedProject?.id;
-          if (!currentProjectId) return;
-
-          const response = await fetch(`/api/tasks?projectId=${currentProjectId}`);
-          if (response.ok) {
-            const data = await response.json();
-            set({ tasks: data.tasks || [] });
-          }
-        } catch (error) {
-          console.error('Error refreshing tasks:', error);
-        }
-      },
-
+      // Состояние боковой панели
       setSidebarOpen: (open: boolean) => {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[AppStore] Сайдбар:', open ? 'открыт' : 'закрыт');
+        }
         set({ sidebarOpen: open });
       },
 
+      // Смена текущего вида (для будущего расширения навигации)
       setCurrentView: (view: AppState['currentView']) => {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[AppStore] Смена вида на:', view);
+        }
         set({ currentView: view });
-      },
-
-      addUser: (user: User) => {
-        set((state) => ({
-          users: [...state.users, user],
-        }));
-      },
-
-      updateUser: (id: number, userData: Partial<User>) => {
-        set((state) => ({
-          users: state.users.map((user) => (user.id === id ? { ...user, ...userData } : user)),
-        }));
-      },
-
-      deleteUser: (id: number) => {
-        set((state) => ({
-          users: state.users.filter((user) => user.id !== id),
-        }));
       },
     }),
     {
-      name: 'app-storage',
+      name: 'app-storage', // Ключ в localStorage
       partialize: (state) => ({
+        // Сохраняем между сессиями только выбранный проект и состояние сайдбара
         selectedProject: state.selectedProject,
-        currentView: state.currentView,
+        sidebarOpen: state.sidebarOpen,
       }),
+      // [УЛУЧШЕНИЕ] Версия стора для будущих миграций
+      version: 3,
+      migrate: (persistedState: any) => {
+        // Если в старых данных были tasks/users/projects — просто игнорируем их
+        return persistedState;
+      },
     }
   )
 );

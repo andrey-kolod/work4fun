@@ -1,8 +1,9 @@
 // src/app/layout.tsx
+
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import { AuthProvider } from '@/components/providers/AuthProvider';
-import { LayoutProvider } from '@/contexts/LayoutContext'; // Импортируем новый провайдер
+import { LayoutProvider } from '@/contexts/LayoutContext';
 import ClientLayout from '../components/layout/ClientLayout';
 import './globals.css';
 
@@ -22,7 +23,6 @@ export default function RootLayout({
     <html lang="ru">
       <body className={`${inter.className} bg-transparent`}>
         <AuthProvider>
-          {/* 🔥 Оборачиваем в LayoutProvider для доступа к layout контексту */}
           <LayoutProvider>
             <ClientLayout>{children}</ClientLayout>
           </LayoutProvider>

@@ -19,6 +19,7 @@ async function makeSlugUnique(baseSlug: string): Promise<string> {
   let slug = baseSlug;
   let counter = 1;
   while (true) {
+    // SELECT * FROM "Project" WHERE slug = $1 LIMIT 1
     const exists = await prisma.project.findFirst({ where: { slug } });
     if (!exists) return slug;
     slug = `${baseSlug}-${counter++}`;
@@ -60,11 +61,13 @@ export async function GET(request: NextRequest) {
       };
 
       if (process.env.NODE_ENV === 'development') {
-        console.log(`🔍 [API /projects GET] Пользователь ${userId}: свои проекты`);
+        console.log(
+          `🔍 [API /projects GET] Обычный пользователь ${userId}: фильтр по своим проектам`
+        );
       }
     } else {
       if (process.env.NODE_ENV === 'development') {
-        console.log('🔍 [API /projects GET] SUPER_ADMIN: все проекты');
+        console.log('🔍 [API /projects GET] SUPER_ADMIN: доступ ко всем проектам');
       }
     }
 
@@ -75,7 +78,7 @@ export async function GET(request: NextRequest) {
           id: true,
           name: true,
           description: true,
-          slug: true, // slug теперь возвращается
+          slug: true,
           status: true,
           createdAt: true,
           updatedAt: true,
@@ -93,15 +96,33 @@ export async function GET(request: NextRequest) {
       prisma.project.count({ where }),
     ]);
 
+    // -- [ПРИМЕРНЫЙ SQL для findMany]
+    // SELECT
+    //   "t0"."id", "t0"."name", "t0"."description", "t0"."slug", "t0"."status",
+    //   "t0"."createdAt", "t0"."updatedAt",
+    //   "owner"."id" AS "owner_id", "owner"."firstName" AS "owner_firstName",
+    //   "owner"."lastName" AS "owner_lastName", "owner"."email" AS "owner_email",
+    //   (
+    //     SELECT COUNT(*) FROM "Task" WHERE "Task"."projectId" = "t0"."id"
+    //   ) AS "_count_tasks",
+    //   (
+    //     SELECT COUNT(*) FROM "ProjectMembership" WHERE "ProjectMembership"."projectId" = "t0"."id"
+    //   ) AS "_count_members"
+    // FROM "Project" AS "t0"
+    // LEFT JOIN "User" AS "owner" ON "t0"."ownerId" = "owner"."id"
+    // WHERE ... -- условия из where
+    // ORDER BY "t0"."name" ASC
+    // LIMIT $1 OFFSET $2
+
     const totalPages = Math.ceil(total / pageSize);
 
     if (process.env.NODE_ENV === 'development') {
       console.log(
-        `✅ [API /projects GET] ${projects.length} проектов (страница ${page}/${totalPages})`
+        `✅ [API /projects GET] Возвращено ${projects.length} проектов (страница ${page}/${totalPages}, всего ${total})`
       );
       console.log(
-        '🔗 [API /projects GET] Slug в ответе:',
-        projects.map((p) => p.slug)
+        '🔗 [API /projects GET] Примеры slug:',
+        projects.slice(0, 3).map((p) => p.slug)
       );
     }
 
@@ -109,9 +130,14 @@ export async function GET(request: NextRequest) {
       projects,
       pagination: { page, pageSize, total, totalPages },
     });
-  } catch (error) {
-    console.error('💥 [API /projects GET] Ошибка:', error);
-    return NextResponse.json({ error: 'Failed to fetch projects' }, { status: 500 });
+  } catch (error: any) {
+    if (process.env.NODE_ENV === 'development') {
+      console.error('💥 [API /projects GET] Неожиданная ошибка:', error);
+    }
+    return NextResponse.json(
+      { error: 'Failed to fetch projects', details: error.message },
+      { status: 500 }
+    );
   }
 }
 
@@ -125,72 +151,77 @@ export async function POST(request: NextRequest) {
 
     const userId = session.user.id as string;
 
-    // [ИСПРАВЛЕНО] Используем обновлённый метод с правильной логикой подсчёта
+    // [ПРОВЕРКА ЛИМИТА] Используем сервис прав
     const canCreate = await PermissionService.canCreateProject(userId);
 
     if (!canCreate) {
-      // [ИСПРАВЛЕНО] Получаем корректное количество проектов
       const ownedCount = await PermissionService.getOwnedProjectsCount(userId);
       const MAX_PROJECTS = 3;
 
       if (process.env.NODE_ENV === 'development') {
         console.warn(
-          `🚫 [API /projects POST] Отказ пользователю ${userId}: ${ownedCount}/${MAX_PROJECTS} проектов`
+          `🚫 [API /projects POST] Отказ в создании: пользователь ${userId} уже имеет ${ownedCount}/${MAX_PROJECTS} проектов`
         );
       }
 
       return NextResponse.json(
         {
           error: 'Превышен лимит проектов',
-          details: `Вы уже являетесь владельцем ${ownedCount} из ${MAX_PROJECTS} возможных проектов. Для создания нового передайте владение одним из существующих проектов.`,
+          details: `Вы уже являетесь владельцем ${ownedCount} из ${MAX_PROJECTS} возможных проектов.`,
         },
         { status: 403 }
       );
     }
 
+    // Парсим тело запроса
     const body = await request.json();
     const { name, description } = body;
 
+    // Валидация названия
     if (!name || typeof name !== 'string' || name.trim().length < 3) {
       return NextResponse.json(
-        { error: 'Название проекта обязательно, минимум 3 символа' },
+        { error: 'Название проекта обязательно и должно содержать минимум 3 символа' },
         { status: 400 }
       );
     }
 
-    let slug = generateSlug(name);
+    // Генерация и уникализация slug
+    let slug = generateSlug(name.trim());
     slug = await makeSlugUnique(slug);
 
     if (process.env.NODE_ENV === 'development') {
-      console.log(`🔍 [API /projects POST] Создание проекта "${name}" для пользователя ${userId}`);
-      console.log(`🔗 [API /projects POST] Сгенерированный slug: ${slug}`);
+      console.log(
+        `📝 [API /projects POST] Создание проекта "${name.trim()}" для пользователя ${userId}`
+      );
+      console.log(`🔗 [API /projects POST] Сгенерированный уникальный slug: ${slug}`);
     }
 
+    // Атомарная транзакция: проект + membership + audit log
     const result = await prisma.$transaction(async (tx) => {
-      // Создаём проект
+      // 1. Создаём проект
       const project = await tx.project.create({
         data: {
           name: name.trim(),
           description: description?.trim() || null,
           slug,
           status: 'ACTIVE',
-          ownerId: userId, // ownerId в модели Project для быстрого поиска
+          ownerId: userId,
         },
         include: {
           owner: { select: { id: true, firstName: true, lastName: true, email: true } },
         },
       });
 
-      // [ВАЖНО] Создаём запись в ProjectMembership с ролью PROJECT_OWNER
+      // 2. Назначаем владельца через ProjectMembership (это важно для лимита!)
       await tx.projectMembership.create({
         data: {
           userId,
           projectId: project.id,
-          role: 'PROJECT_OWNER', // Это то, что считает лимит!
+          role: 'PROJECT_OWNER',
         },
       });
 
-      // Аудит-лог
+      // 3. Записываем аудит-лог
       await tx.auditLog.create({
         data: {
           userId,
@@ -199,7 +230,7 @@ export async function POST(request: NextRequest) {
           action: 'CREATE',
           details: JSON.stringify({
             name: project.name,
-            slug,
+            slug: project.slug,
             ownerId: userId,
           }),
           ipAddress: request.headers.get('x-forwarded-for') || undefined,
@@ -210,18 +241,23 @@ export async function POST(request: NextRequest) {
     });
 
     if (process.env.NODE_ENV === 'development') {
-      console.log(`✅ [API /projects POST] Проект создан (ID: ${result.id}, slug: ${result.slug})`);
       console.log(
-        `👑 [API /projects POST] Пользователь ${userId} назначен PROJECT_OWNER проекта ${result.id}`
+        `✅ [API /projects POST] Проект успешно создан: ID=${result.id}, slug=${result.slug}`
       );
+      console.log(`👑 [API /projects POST] Пользователь ${userId} назначен PROJECT_OWNER`);
     }
 
     return NextResponse.json(
       { project: result, message: 'Проект успешно создан' },
       { status: 201 }
     );
-  } catch (error) {
-    console.error('💥 [API /projects POST] Ошибка:', error);
-    return NextResponse.json({ error: 'Ошибка при создании проекта' }, { status: 500 });
+  } catch (error: any) {
+    if (process.env.NODE_ENV === 'development') {
+      console.error('💥 [API /projects POST] Неожиданная ошибка:', error);
+    }
+    return NextResponse.json(
+      { error: 'Ошибка при создании проекта', details: error.message },
+      { status: 500 }
+    );
   }
 }

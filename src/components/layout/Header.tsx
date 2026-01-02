@@ -43,7 +43,6 @@ const Header: React.FC = () => {
     setMounted(true);
   }, []);
 
-  // Закрытие меню пользователя при клике вне его
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
@@ -55,7 +54,6 @@ const Header: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Закрытие меню при нажатии Escape
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && userMenuOpen) {
@@ -135,7 +133,6 @@ const Header: React.FC = () => {
                 aria-expanded={sidebarOpen}
                 aria-controls="sidebar-navigation"
               >
-                {/* Простая иконка гамбургера - без анимации */}
                 <svg
                   className="w-5 h-5"
                   fill="none"

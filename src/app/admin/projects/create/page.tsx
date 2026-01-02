@@ -1,5 +1,4 @@
 // src/app/admin/projects/create/page.tsx
-// [ИСПРАВЛЕНО] Тоже убираем функцию onSuccess
 
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';

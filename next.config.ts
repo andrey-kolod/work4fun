@@ -6,12 +6,9 @@ const nextConfig: NextConfig = {
   reactCompiler: true,
   productionBrowserSourceMaps: false,
 
-  // Убедитесь, что эти пакеты правильно настроены для Edge
   serverExternalPackages: ['@prisma/client', 'bcrypt'],
 
-  // Явно указываем runtime для middleware
   experimental: {
-    // Это поможет с совместимостью Prisma в Edge Runtime
     serverComponentsExternalPackages: ['@prisma/client', 'bcryptjs'],
   },
 
@@ -41,7 +38,6 @@ const nextConfig: NextConfig = {
   },
 
   images: {
-    dangerouslyAllowSVG: true,
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
     remotePatterns: [
       {
@@ -52,10 +48,6 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-
-  // Для поддержки middleware в Edge Runtime
-  // Если хотите использовать Edge Runtime с Prisma, нужно настроить Prisma Accelerate
-  // Или оставить Node.js runtime (как указано в middleware выше)
 };
 
 export default nextConfig;

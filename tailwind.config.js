@@ -56,12 +56,20 @@ module.exports = {
           secondary: '#6b7280',
         },
       },
+
+      // Анимации
+      animation: {
+        'gentle-pulse': 'gentle-pulse 2s ease-in-out infinite',
+      },
+      keyframes: {
+        'gentle-pulse': {
+          '0%, 100%': { opacity: '1' },
+          '50%': { opacity: '0.7' },
+        },
+      },
     },
   },
 
   // plugins: дополнительные плагины Tailwind
   plugins: [require('@tailwindcss/typography')],
 };
-
-// ВАЖНО: НЕ ИСПОЛЬЗУЕМ export default в .js файлах!
-// В JavaScript файлах используем только module.exports

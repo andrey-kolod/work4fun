@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Checkbox } from '@/components/ui/Checkbox';
+import { fetchJson } from '@/lib/api-client';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -36,6 +37,12 @@ export default function LoginPage() {
     resolver: zodResolver(loginSchema),
   });
 
+  if (process.env.NODE_ENV === 'development') {
+    if (Object.keys(errors).length > 0) {
+      console.log('🚨 [LoginPage] Ошибки валидации формы:', errors);
+    }
+  }
+
   const copyToClipboard = (email: string) => {
     navigator.clipboard.writeText(email);
     setCopiedEmail(email);
@@ -44,7 +51,7 @@ export default function LoginPage() {
 
   const onSubmit = async (data: LoginInput) => {
     if (process.env.NODE_ENV === 'development') {
-      console.log('🔐 [LoginPage] Попытка входа:', data.email);
+      console.log('🔐 [LoginPage] Попытка входа:', data.email, { rememberMe });
     }
 
     setIsLoading(true);
@@ -63,26 +70,42 @@ export default function LoginPage() {
         return;
       }
 
-      const verifyRes = await fetch('/api/auth/recaptcha', {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🔍 [LoginPage] Отправка токена на серверную проверку reCAPTCHA');
+      }
+
+      const {
+        data: verifyData,
+        error: recaptchaError,
+        status: recaptchaStatus,
+      } = await fetchJson<{
+        success: boolean;
+        score?: number;
+      }>('/api/auth/recaptcha', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: recaptchaToken }),
       });
 
-      const verifyData = await verifyRes.json();
-
-      if (!verifyData.success || verifyData.score < 0.5) {
+      if (recaptchaError || !verifyData?.success || (verifyData.score ?? 0) < 0.5) {
         if (process.env.NODE_ENV === 'development') {
-          console.warn('reCAPTCHA: подозрительный пользователь, score:', verifyData.score);
+          console.warn(
+            `reCAPTCHA не пройдена: success=${verifyData?.success}, score=${verifyData?.score}, status=${recaptchaStatus}`
+          );
         }
         setServerError('Проверка reCAPTCHA не пройдена. Попробуйте позже.');
         setIsLoading(false);
         return;
       }
 
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`✅ [LoginPage] reCAPTCHA пройдена, score: ${verifyData.score}`);
+      }
+
       const result = await signIn('credentials', {
         email: data.email,
         password: data.password,
+        rememberMe: rememberMe ? 'on' : undefined,
         redirect: false,
       });
 
@@ -93,15 +116,15 @@ export default function LoginPage() {
         setServerError('Неверный email или пароль. Попробуйте снова.');
       } else if (result?.ok) {
         if (process.env.NODE_ENV === 'development') {
-          console.log('✅ [LoginPage] Успешный вход! Редирект с fromLogin=true');
+          console.log(`✅ [LoginPage] Успешный вход! Сессия: ${rememberMe ? '30 дней' : '1 день'}`);
         }
 
         router.push('/projects?fromLogin=true');
         router.refresh();
       }
-    } catch (error) {
+    } catch (error: any) {
       if (process.env.NODE_ENV === 'development') {
-        console.error('💥 [LoginPage] Ошибка при входе:', error);
+        console.error('💥 [LoginPage] Неожиданная ошибка при входе:', error);
       }
       setServerError('Произошла ошибка. Попробуйте позже.');
     } finally {
@@ -208,6 +231,7 @@ export default function LoginPage() {
               </div>
             )}
 
+            {/* Поле Email */}
             <div className="space-y-2">
               <Label htmlFor="email">Электронная почта</Label>
               <Input
@@ -215,12 +239,18 @@ export default function LoginPage() {
                 type="email"
                 placeholder="your@email.com"
                 {...register('email')}
-                error={errors.email?.message}
+                error={!!errors.email}
                 disabled={isLoading}
                 aria-label="Введите email"
               />
+              {errors.email && (
+                <p className="text-sm text-red-600 mt-1" role="alert">
+                  {errors.email.message}
+                </p>
+              )}
             </div>
 
+            {/* Поле Пароль */}
             <div className="space-y-2">
               <Label htmlFor="password">Пароль</Label>
               <div className="relative">
@@ -229,7 +259,7 @@ export default function LoginPage() {
                   type={showPassword ? 'text' : 'password'}
                   placeholder="••••••••"
                   {...register('password')}
-                  error={errors.password?.message}
+                  error={!!errors.password}
                   disabled={isLoading}
                   value={'demo123'}
                   aria-label="Введите пароль"
@@ -243,8 +273,14 @@ export default function LoginPage() {
                   {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
               </div>
+              {errors.password && (
+                <p className="text-sm text-red-600 mt-1" role="alert">
+                  {errors.password.message}
+                </p>
+              )}
             </div>
 
+            {/* [НОВОЕ] Чекбокс "Запомнить меня" теперь реально работает */}
             <div className="flex items-center justify-between">
               <label className="flex items-center space-x-2 cursor-pointer">
                 <Checkbox
@@ -265,7 +301,7 @@ export default function LoginPage() {
               </Link>
             </div>
 
-            {/* reCAPTCHA */}
+            {/* reCAPTCHA (invisible) */}
             <ReCAPTCHA
               sitekey={process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY!}
               size="invisible"

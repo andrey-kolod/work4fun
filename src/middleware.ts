@@ -9,9 +9,7 @@ export async function middleware(request: NextRequest) {
   const isDev = process.env.NODE_ENV === 'development';
   const { pathname } = request.nextUrl;
 
-  // ============================================
-  // 🛡️ 1. Установка заголовков безопасности (CSP)
-  // ============================================
+  // Установка заголовков безопасности (CSP)
   const response = NextResponse.next();
 
   const cspDirectives = isDev
@@ -42,16 +40,12 @@ export async function middleware(request: NextRequest) {
 
   response.headers.set('Content-Security-Policy', cspDirectives.join('; '));
 
-  // ============================================
-  // 📍 2. Логирование запроса (только dev)
-  // ============================================
+  // 2. Логирование запроса (только dev)
   if (isDev) {
     console.log(`🔍 [Middleware] ${request.method} ${pathname}`);
   }
 
-  // ============================================
-  // 🆓 3. Публичные пути (без авторизации)
-  // ============================================
+  // Публичные пути (без авторизации)
   const publicPaths = [
     '/',
     '/login',
@@ -88,9 +82,7 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  // ============================================
-  // 🔐 4. Проверка авторизации
-  // ============================================
+  // Проверка авторизации
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
 
   if (!token || !token.sub) {
@@ -109,9 +101,7 @@ export async function middleware(request: NextRequest) {
     console.log(`↳ [Middleware] Пользователь ID: ${userId}, Роль: ${userRole}`);
   }
 
-  // ============================================
-  // 🎯 5. Корневой путь (/) - упрощённая логика
-  // ============================================
+  // Корневой путь (/) - упрощённая логика
   if (pathname === '/') {
     if (isDev) {
       console.log(`↳ [Middleware] Корневой путь — редирект на /projects`);
@@ -119,9 +109,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/projects', request.url));
   }
 
-  // ============================================
-  // 📋 6. Страница проектов (/projects*) - упрощённая проверка
-  // ============================================
+  // Страница проектов (/projects*) - упрощённая проверка
   if (pathname.startsWith('/projects')) {
     if (isDev) {
       console.log(`↳ [Middleware] Доступ к /projects разрешён`);
@@ -138,9 +126,7 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  // ============================================
-  // 📊 7. Дашборд и задачи - упрощённая проверка
-  // ============================================
+  // Дашборд и задачи - упрощённая проверка
   if (pathname.startsWith('/dashboard') || pathname.startsWith('/tasks')) {
     const projectId = request.nextUrl.searchParams.get('projectId');
 
@@ -158,9 +144,7 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  // ============================================
-  // 👑 8. Админка - проверка роли
-  // ============================================
+  // Админка - проверка роли
   if (pathname.startsWith('/admin')) {
     // Только SUPER_ADMIN может создавать проекты через админку
     if (pathname === '/admin/projects/create' && userRole !== $Enums.Role.SUPER_ADMIN) {
@@ -182,9 +166,7 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  // ============================================
-  // 🔌 9. API админки
-  // ============================================
+  // API админки
   if (pathname.startsWith('/api/admin')) {
     if (userRole !== $Enums.Role.SUPER_ADMIN) {
       if (isDev) {
@@ -195,9 +177,7 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  // ============================================
-  // 🔧 10. API проектов - упрощённая проверка
-  // ============================================
+  // API проектов - упрощённая проверка
   if (pathname.startsWith('/api/projects') && request.method === 'POST') {
     if (isDev) {
       console.log(`↳ [Middleware] Запрос на создание проекта от пользователя ${userId}`);
@@ -205,9 +185,7 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  // ============================================
-  // ✅ 11. Всё остальное
-  // ============================================
+  // Всё остальное
   if (isDev) {
     console.log(`✅ [Middleware] Разрешён доступ к ${pathname}`);
   }

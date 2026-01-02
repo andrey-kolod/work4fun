@@ -4,10 +4,10 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useLayout } from '@/contexts/LayoutContext';
-import { ToastProvider } from '@/components/ui/Toast';
+import { ToastProvider } from '@/components/ui/index';
 import Header from '@/components/layout/Header';
 import Sidebar from '@/components/layout/Sidebar';
-import PageLoader from '@/components/ui/PageLoader';
+import { PageLoader } from '@/components/ui/PageLoader';
 import { useAppStore } from '@/store/useAppStore';
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
@@ -42,11 +42,10 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     };
   }, [mounted]);
 
-  // Блокируем скролл ТОЛЬКО на мобильных
   useEffect(() => {
     if (!shouldShowSidebar) return;
 
-    const isMobile = window.innerWidth < 1024; // lg breakpoint
+    const isMobile = window.innerWidth < 1024;
 
     if (sidebarOpen && isMobile) {
       document.body.style.overflow = 'hidden';

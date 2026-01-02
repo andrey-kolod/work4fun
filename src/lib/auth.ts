@@ -1,10 +1,9 @@
-// ФАЙЛ: /src/lib/auth.ts
-// НАЗНАЧЕНИЕ: Основная конфигурация аутентификации в приложении Next.js
+// src/lib/auth.ts
 
 import { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { PrismaAdapter } from '@next-auth/prisma-adapter';
-import { prisma } from '@/lib/prisma';
+import { prismaRaw } from '@/lib/prisma-raw';
 import bcrypt from 'bcryptjs';
 import { loginSchema } from '@/lib/validations/auth';
 import { Role } from '@prisma/client';
@@ -13,31 +12,26 @@ import jwt from 'jsonwebtoken';
 const isDev = process.env.NODE_ENV === 'development';
 
 if (!process.env.NEXTAUTH_SECRET) {
-  console.error('❌ NEXTAUTH_SECRET не установлена!');
-  throw new Error('NEXTAUTH_SECRET is required');
+  throw new Error('NEXTAUTH_SECRET не установлен в .env');
 }
-
 if (!process.env.NEXTAUTH_REFRESH_SECRET) {
-  console.error('❌ NEXTAUTH_REFRESH_SECRET не установлена!');
-  throw new Error('NEXTAUTH_REFRESH_SECRET is required');
+  throw new Error('NEXTAUTH_REFRESH_SECRET не установлен в .env');
 }
 
 function generateAccessToken(userId: string, email: string, role?: Role): string {
-  const payload = { sub: userId, email, role };
-  return jwt.sign(payload, process.env.NEXTAUTH_SECRET!, {
-    expiresIn: '15m', // 15 минут
+  return jwt.sign({ sub: userId, email, role }, process.env.NEXTAUTH_SECRET!, {
+    expiresIn: '15m',
   });
 }
 
 function generateRefreshToken(userId: string, email: string): string {
-  const payload = { sub: userId, email };
-  return jwt.sign(payload, process.env.NEXTAUTH_REFRESH_SECRET!, {
-    expiresIn: '30d', // 30 дней
+  return jwt.sign({ sub: userId, email }, process.env.NEXTAUTH_REFRESH_SECRET!, {
+    expiresIn: '30d',
   });
 }
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
+  adapter: PrismaAdapter(prismaRaw),
 
   providers: [
     CredentialsProvider({
@@ -46,9 +40,10 @@ export const authOptions: NextAuthOptions = {
       credentials: {
         email: { label: 'Email', type: 'email' },
         password: { label: 'Password', type: 'password' },
+        rememberMe: { label: 'Remember me', type: 'checkbox' },
       },
       async authorize(credentials) {
-        if (isDev) console.log('🔐 [AUTHORIZE]', credentials?.email);
+        if (isDev) console.log('🔐 [AUTHORIZE] Попытка входа:', credentials?.email);
 
         if (!credentials?.email || !credentials?.password) {
           throw new Error('Введите email и пароль');
@@ -60,11 +55,14 @@ export const authOptions: NextAuthOptions = {
         });
 
         if (!validationResult.success) {
-          throw new Error('Неверный формат email или пароля');
+          throw new Error('Неверный формат данных');
         }
 
         const { email, password } = validationResult.data;
-        const user = await prisma.user.findUnique({
+        const rememberMe = credentials.rememberMe === 'on';
+
+        // SELECT * FROM "User" WHERE email = $1 LIMIT 1
+        const user = await prismaRaw.user.findUnique({
           where: { email: email.toLowerCase().trim() },
         });
 
@@ -76,18 +74,22 @@ export const authOptions: NextAuthOptions = {
         const isPasswordValid = await bcrypt.compare(password, passwordField);
         if (!isPasswordValid) throw new Error('Неверный email или пароль');
 
-        if (!user.emailVerified) throw new Error('Подтвердите email перед входом');
+        if (!user.emailVerified) throw new Error('Подтвердите email');
 
-        if (isDev) console.log(`✅ [AUTHORIZE] ${user.id} (${user.role})`);
+        if (isDev)
+          console.log(
+            `✅ [AUTHORIZE] Успех:: ${user.id} (${user.role}), rememberMe: ${rememberMe}`
+          );
 
         return {
           id: String(user.id),
           email: user.email,
-          firstName: user.firstName || '',
-          lastName: user.lastName || '',
+          firstName: user.firstName ?? undefined,
+          lastName: user.lastName ?? undefined,
           role: user.role as Role,
           name: [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email,
-          avatar: user.avatar || null,
+          avatar: user.avatar ?? undefined,
+          rememberMe,
         };
       },
     }),
@@ -95,24 +97,13 @@ export const authOptions: NextAuthOptions = {
 
   session: {
     strategy: 'jwt',
-    maxAge: 30 * 24 * 60 * 60, // 30 дней
+    maxAge: 24 * 60 * 60, // 1 день по умолчанию
   },
 
   callbacks: {
-    // REFRESH
     async jwt({ token, user }: any) {
-      // DEV ЛОГИ
-      if (isDev) {
-        console.log('🔑 [JWT]', {
-          hasUser: !!user,
-          hasAccess: !!token.accessToken,
-          timeLeft: token.accessTokenExpires
-            ? Math.floor((token.accessTokenExpires - Date.now()) / 1000 / 60) + 'm'
-            : 'N/A',
-        });
-      }
+      if (isDev) console.log('🔑 [JWT] callback', { hasUser: !!user, tokenId: token.id });
 
-      // ПЕРВЫЙ ЛОГИН
       if (user) {
         token.id = user.id;
         token.role = user.role;
@@ -121,65 +112,53 @@ export const authOptions: NextAuthOptions = {
         token.email = user.email;
         token.avatar = user.avatar;
 
-        // СОЗДАЁМ ТОКЕНЫ
-        token.accessToken = generateAccessToken(user.id, user.email, user.role);
-        token.refreshToken = generateRefreshToken(user.id, user.email);
-        token.accessTokenExpires = Date.now() + 15 * 60 * 1000; // 15 мин
+        const sessionDays = user.rememberMe ? 30 : 1;
+        token.maxAge = sessionDays * 24 * 60 * 60;
 
         if (isDev) {
-          console.log('✅ [JWT] Токены созданы → 15m');
+          console.log(`⏳ [JWT] Сессия установлена на ${sessionDays} день(дней)`);
         }
+
+        token.accessToken = generateAccessToken(user.id, user.email, user.role);
+        token.refreshToken = generateRefreshToken(user.id, user.email);
+        token.accessTokenExpires = Date.now() + 15 * 60 * 1000;
+
         return token;
       }
 
-      // 2. REFRESH CHECK
-      if (!token.accessToken || typeof token.accessTokenExpires !== 'number') {
-        if (isDev) console.log('❌ [JWT] Нет токенов');
-        return token;
-      }
-
-      const timeLeft = Math.floor((token.accessTokenExpires - Date.now()) / 1000 / 60); // остаток в минутах
-      if (isDev) console.log('⏰ [JWT] Осталось:', timeLeft, 'мин');
-
-      // REFRESH ЕСЛИ <5 МИНУТ
-      if (timeLeft < 5) {
-        if (isDev) console.log('🚀 [JWT] REFRESH <5 мин');
+      if (token.accessTokenExpires && Date.now() > token.accessTokenExpires - 5 * 60 * 1000) {
         try {
           const decoded = jwt.verify(
             token.refreshToken as string,
             process.env.NEXTAUTH_REFRESH_SECRET!
-          ) as { sub: string; email: string };
-
-          token.accessToken = generateAccessToken(decoded.sub, decoded.email, token.role);
-          token.accessTokenExpires = Date.now() + 15 * 60 * 1000; // +15 мин
-
-          if (isDev) {
-            console.log('✅ [JWT] REFRESH УСПЕШЕН → 15m');
-          }
-        } catch (error: any) {
-          if (isDev) console.error('💥 [JWT] Refresh failed:', error.message);
+          ) as { sub: string };
+          token.accessToken = generateAccessToken(
+            decoded.sub,
+            token.email as string,
+            token.role as Role
+          );
+          token.accessTokenExpires = Date.now() + 15 * 60 * 1000;
+        } catch {
           token.error = 'RefreshFailed';
-          token.accessToken = null;
         }
       }
 
       return token;
     },
 
-    // SESSION
     async session({ session, token }: any) {
       if (session.user && token) {
         session.user.id = token.id as string;
         session.user.role = token.role as Role;
-        session.user.firstName = token.firstName as string;
-        session.user.lastName = token.lastName as string;
-        session.user.avatar = token.avatar as string | null;
-        session.user.name = token.name || (token.email as string);
+        session.user.firstName = token.firstName as string | undefined;
+        session.user.lastName = token.lastName as string | undefined;
+        session.user.avatar = token.avatar as string | undefined;
       }
 
-      // AccessToken для API
       (session as any).accessToken = token.accessToken;
       (session as any).error = token.error;
+
+      session.maxAge = token.maxAge;
 
       return session;
     },
