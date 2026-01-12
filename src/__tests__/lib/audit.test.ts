@@ -1,10 +1,11 @@
-// __tests__/lib/audit.test.ts
-import { audit, logActivity } from '@/lib/audit';
+// src/__tests__/lib/audit.test.ts
 
-// Mock prisma
-jest.mock('../../lib/prisma', () => ({
+import audit from '@/lib/audit';
+import { NextRequest } from 'next/server';
+
+jest.mock('@/lib/prisma', () => ({
   prisma: {
-    activityLog: {
+    auditLog: {
       create: jest.fn(),
     },
   },
@@ -12,60 +13,78 @@ jest.mock('../../lib/prisma', () => ({
 
 import { prisma } from '@/lib/prisma';
 
+const mockedCreate = prisma.auditLog.create as jest.MockedFunction<typeof prisma.auditLog.create>;
+
 describe('audit', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    mockedCreate.mockClear();
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[DEV TEST] audit.test.ts: Мок prisma.auditLog.create очищен');
+    }
   });
 
-  it('should log activity', async () => {
-    const activityData = {
-      userId: 1,
-      actionType: 'TEST_ACTION',
-      entityType: 'Test',
-      entityId: 1,
-      oldValues: { name: 'old' },
-      newValues: { name: 'new' },
-      ipAddress: 'unknown', // ДОБАВЛЕНО
-      userAgent: 'unknown', // ДОБАВЛЕНО
-    };
+  it('should create audit log with request (full data)', async () => {
+    const mockRequest = {
+      headers: {
+        get: jest.fn((header: string) => {
+          if (header === 'x-forwarded-for') return '192.168.0.1';
+          if (header === 'user-agent') return 'Mozilla/5.0 Test Browser';
+          return null;
+        }),
+      },
+    } as unknown as NextRequest;
 
-    await logActivity(activityData);
+    const details = { action: 'CREATE', name: 'Test Project' };
 
-    expect(prisma.activityLog.create).toHaveBeenCalledWith({
-      data: activityData,
+    await audit.create('user-123', 'Project', 'proj-456', details, mockRequest);
+
+    expect(mockedCreate).toHaveBeenCalledWith({
+      data: {
+        userId: 'user-123',
+        entityType: 'Project',
+        entityId: 'proj-456',
+        action: 'CREATE',
+        details: JSON.stringify(details),
+        ipAddress: '192.168.0.1',
+        userAgent: 'Mozilla/5.0 Test Browser',
+      },
     });
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[DEV TEST] audit.test.ts: Тест с request прошёл');
+    }
   });
 
-  it('should create user with audit.create', async () => {
-    await audit.create(1, 'User', 1, { name: 'Test' });
+  it('should create audit log without request (default unknown)', async () => {
+    const details = { action: 'UPDATE', changes: { old: 'a', new: 'b' } };
 
-    expect(prisma.activityLog.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        actionType: 'USER_CREATED',
-        entityType: 'User',
-        entityId: 1,
-        userId: 1,
-        newValues: { name: 'Test' },
+    await audit.create('user-789', 'Task', 'task-101', details);
+
+    expect(mockedCreate).toHaveBeenCalledWith({
+      data: {
+        userId: 'user-789',
+        entityType: 'Task',
+        entityId: 'task-101',
+        action: 'UPDATE',
+        details: JSON.stringify(details),
         ipAddress: 'unknown',
         userAgent: 'unknown',
-      }),
+      },
     });
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[DEV TEST] audit.test.ts: Тест без request прошёл');
+    }
   });
 
-  it('should update user with audit.update', async () => {
-    await audit.update(1, 'User', 1, { name: 'Old' }, { name: 'New' });
+  it('should handle invalid parameters silently (no DB call)', async () => {
+    await audit.create('', '', '', {});
 
-    expect(prisma.activityLog.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        actionType: 'USER_UPDATED',
-        entityType: 'User',
-        entityId: 1,
-        userId: 1,
-        oldValues: { name: 'Old' },
-        newValues: { name: 'New' },
-        ipAddress: 'unknown',
-        userAgent: 'unknown',
-      }),
-    });
+    expect(mockedCreate).not.toHaveBeenCalled();
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[DEV TEST] audit.test.ts: Тест на невалидные параметры прошёл');
+    }
   });
 });

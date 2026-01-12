@@ -1,4 +1,4 @@
-// next.config.js
+// next.config.ts
 
 import type { NextConfig } from 'next';
 
@@ -6,11 +6,7 @@ const nextConfig: NextConfig = {
   reactCompiler: true,
   productionBrowserSourceMaps: false,
 
-  serverExternalPackages: ['@prisma/client', 'bcrypt'],
-
-  experimental: {
-    serverComponentsExternalPackages: ['@prisma/client', 'bcryptjs'],
-  },
+  serverExternalPackages: ['@prisma/client', 'bcrypt', 'bcryptjs'],
 
   webpack: (config: any, { dev, isServer }: { dev: boolean; isServer: boolean }) => {
     if (!dev && !isServer) {

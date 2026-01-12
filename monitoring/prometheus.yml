@@ -1,0 +1,50 @@
+﻿# work4fun/monitoring/prometheus.yml
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # 1. Prometheus сам себя
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # 2. Node exporter (localhost для Windows Docker)
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100'] # ← Windows Docker хак
+    scrape_interval: 30s
+    scrape_timeout: 20s
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'windows-dev-machine'
+
+  # 3. Grafana (добавить /metrics)
+  - job_name: 'grafana'
+    metrics_path: '/metrics' # ← Grafana НЕ отдает metrics по /
+    static_configs:
+      - targets: ['grafana:3000'] # ← ИМЯ КОНТЕЙНЕРА!
+    scrape_interval: 30s
+    scrape_timeout: 10s
+
+  # 4. Next.js приложение
+  - job_name: 'work4fun-nextjs'
+    metrics_path: '/api/metrics'
+    static_configs:
+      - targets: ['host.docker.internal:3000']
+    bearer_token_file: '/etc/prometheus_token'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+    relabel_configs:
+      - source_labels: [__name__]
+        regex: 'container_.*'
+        action: keep
+      - source_labels: [container_name]
+        target_label: name
+        regex: '.+'

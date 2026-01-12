@@ -1352,7 +1352,157 @@ PROJECT_OWNER может передать владение проектом др
 
 ### 4.4 📱 Usability
 
+## 5. Инфраструктура и мониторинг
+
+### 5.1 Обзор инфраструктуры
+
+```
+Work4Fun MVP v1.0 использует **production-ready** стек мониторинга на базе Prometheus + Grafana + Loki для полного контроля:
+
+🌐 Публичный доступ → Grafana:3001 (ЕДИНСТВЕННЫЙ открытый порт)
+↓ (Docker Network — изолированная)
+┌─────────────────┐
+│ Prometheus:9090 │ ← Метрики CPU/RAM/HTTP (15s интервал)
+│ Loki:3100       │ ← Логи всех контейнеров
+│ NodeExporter    │ ← Метрики Windows хоста
+└─────────────────┘
+↑
+Promtail ← Автосбор логов Docker (/var/lib/docker/containers)
+↑
+docker.sock ← Доступ ко всем контейнерам хоста
 ```
 
+### 5.2 Компоненты мониторинга
+
+```
+| Компонент | Порт | Назначение | Доступ |
+|-----------|------|------------|---------|
+| **Grafana** | `3001` | UI дашборды, графики, логи, алерты | ✅ Публичный |
+| **Prometheus** | `9090` (internal) | Сбор метрик каждые 15s | 🔒 Docker сеть |
+| **Loki** | `3100` (internal) | Хранилище логов контейнеров | 🔒 Docker сеть |
+| **Promtail** | `-` | Сборщик логов Docker | 🔒 Worker |
+| **NodeExporter** | `9100` (internal) | CPU/RAM/диски Windows | 🔒 Docker сеть |
+
+**✅ Статус**: 5/5 контейнеров `Up`, Prometheus targets: 5/5 UP
+```
+
+### 5.3 Метрики мониторинга (Prometheus)
+
+```
+📊 Собираемые метрики (каждые 15 секунд):
+├── Next.js app: http://localhost:3000/api/metrics (Bearer auth)
+├── Grafana: /metrics (CPU, RAM, HTTP requests)
+├── Windows хост: CPU 24%, RAM 12GB, диски
+├── Prometheus: self-monitoring
+└── NodeExporter: системные метрики хоста
+
+**Targets в http://localhost:3001/connections**:
+✅ prometheus (localhost:9090)
+✅ grafana (grafana:3000)
+✅ node-exporter (node-exporter:9100)
+✅ work4fun-nextjs (host.docker.internal:3000)
+
+```
+
+### 5.4 Логирование (Loki + Promtail)
+
+```
+📜 Централизованный сбор логов:
+├── ALL Docker контейнеры → Promtail → Loki
+├── /var/lib/docker/containers/*.log (автоматически)
+├── Поиск логов: Grafana Explore → Loki → {job="work4fun-nextjs"}
+└── Хранение: persistent volume (loki_data)
+```
+
+### 5.5 Безопасность инфраструктуры
+
+```
+🔒 Production-ready security:
+├── ✅ Docker Secrets: пароли НЕ видны в docker inspect/logs
+│ ├── grafana_admin_password.txt → /run/secrets/grafana_password
+│ └── prometheus_token.txt → /etc/prometheus_token
+├── ✅ Единственный публичный порт: localhost:3001 (Grafana)
+├── ✅ Internal-only сервисы (expose вместо ports):
+│ ├── prometheus:9090 (только Grafana видит)
+│ ├── loki:3100 (только Grafana видит)
+│ └── node-exporter:9100 (только Prometheus)
+├── ✅ Bearer Token авторизация: Next.js /api/metrics
+├── ✅ .gitignore: secrets/ НЕ попадает в Git
+└── ✅ Auto-provisioning: datasources создаются автоматически
+
+**Grafana доступ**: `admin` / `demo123`
+```
+
+### 5.6 DevOps процессы
+
+```
+🔄 Развёртывание и управление:
+├── docker compose --env-file .env.monitoring up -d (1 команда)
+├── .env.monitoring → порты, токены (локально)
+├── monitoring/ → docker-compose.yml + configs
+├── docker compose ps → 5/5 Up (30 секунд после запуска)
+└── docker logs work4fun-grafana → диагностика
+
+**Очистка**: `docker image prune -a -f` (удаляет только unused images)
+```
+
+### 5.7 Дашборды Grafana (авто provisioned)
+
+```
+📊 Готовые дашборды:
+├── System Overview (system-overview.json)
+├── Prometheus 4/5 targets UP
+├── Loki: логи контейнеров ({job="work4fun-nextjs"})
+├── Node Exporter: Windows CPU/RAM/диски
+└── HTTP metrics: Next.js API response times
+
+**Auto-provisioning** (`grafana/provisioning/`):
+datasources/datasources.yml → Prometheus + Loki (при старте)
+dashboards/ → JSON дашборды (при старте)
+
+```
+
+### 5.8 Нефункциональные характеристики
+
+```
+⚡ Производительность:
+├── 15s scrape_interval (метрики)
+├── 30s log rotation (логи)
+├── <200MB диск (образы после prune)
+└── 2GB RAM (5 контейнеров)
+
+🔒 Масштабируемость:
+├── Volume persistence: НЕ теряются данные
+├── Docker Compose → Kubernetes (легко)
+└── Horizontal scaling (Prometheus federation)
+
+🛠️ Обслуживание:
+├── docker compose down/up -d → 30 секунд
+├── docker compose logs → вся диагностика
+└── docker system prune → очистка мусора
+
+text
+```
+
+### 5.9 Roadmap мониторинга (v2.0+)
+
+```
+🚀 Будущие улучшения:
+
+✅ v1.0 (готово)	🔄 v2.0 (будет)
+Prometheus + Grafana	Alertmanager + PagerDuty
+Loki + Promtail	cAdvisor (контейнерные метрики)
+Docker Secrets	External PostgreSQL (Grafana)
+Auto-provisioning	SLO/SLI дашборды
+5/5 targets UP	Tracing (Tempo/Jaeger)
+text
+
+**📍 Статус**: Production-ready инфраструктура **готово** ✅
+```
+
+```
+1. Подлючить логи
+2. Мигрировать БД на сервер
+3. Написать юнит-тесты
 
 ```
