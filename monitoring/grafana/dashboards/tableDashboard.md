@@ -10,7 +10,7 @@
 }, "id": 100, "options": { "footer": { "countRows": false, "fields": "", "reducer": [ "sum" ],
 "show": false }, "showHeader": true, "cellHeight": "sm" }, "targets": [ { "datasource": { "type":
 "loki", "uid": "Loki" }, "editorMode": "code", "expr": "sum by (level)
-(count_over_time({service_name=\"work4fun\", level=~\"ERROR|WARN\"}[5m]))", "format": "table",
+(count*over_time({service_name=\"work4fun\", level=~\"ERROR|WARN\"}[5m]))", "format": "table",
 "instant": true, "legendFormat": "{{level}}", "refId": "A" }, { "datasource": { "type": "loki",
 "uid": "Loki" }, "editorMode": "code", "expr": "sum by (level)
 (count_over_time({service_name=\"work4fun\", level=~\"ERROR|WARN\"}[1h]))", "format": "table",
@@ -36,9 +36,9 @@ minutes", "Value #B": "1 hour", "Value #C": "6 hours", "Value #D": "24 hours", "
 false, "tooltip": false, "viz": false } }, "decimals": 0, "mappings": [], "thresholds": { "mode":
 "absolute", "steps": [ { "color": "green", "value": null }, { "color": "#EAB308", "value": 1 }, {
 "color": "red", "value": 10 } ] }, "unit": "none" }, "overrides": [ { "matcher": { "id": "byRegexp",
-"options": "ERROR._" }, "properties": [ { "id": "color", "value": { "mode": "fixed", "fixedColor":
+"options": "ERROR.*" }, "properties": [ { "id": "color", "value": { "mode": "fixed", "fixedColor":
 "#EF4444" } }, { "id": "displayName", "value": "${__field.name}" } ] }, { "matcher": { "id":
-"byRegexp", "options": "WARN._" }, "properties": [ { "id": "color", "value": { "mode": "fixed",
+"byRegexp", "options": "WARN.\_" }, "properties": [ { "id": "color", "value": { "mode": "fixed",
 "fixedColor": "#F59E0B" } }, { "id": "displayName", "value": "${__field.name}" } ] } ] }, "gridPos":
 { "h": 12, "w": 24, "x": 0, "y": 42 }, "id": 100, "options": { "displayMode": "gradient",
 "maxVizWidth": 200, "minVizHeight": 8, "minVizWidth": 0, "orientation": "horizontal",
