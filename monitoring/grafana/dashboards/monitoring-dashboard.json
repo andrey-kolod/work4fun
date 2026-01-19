@@ -65,9 +65,7 @@
       "options": {
         "colorMode": "value",
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ]
+          "calcs": ["lastNotNull"]
         },
         "textMode": "auto"
       },
@@ -137,9 +135,7 @@
       "options": {
         "orientation": "auto",
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ]
+          "calcs": ["lastNotNull"]
         },
         "showThresholdLabels": false,
         "showThresholdMarkers": true
@@ -194,9 +190,7 @@
       "options": {
         "orientation": "auto",
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ]
+          "calcs": ["lastNotNull"]
         },
         "showThresholdLabels": false,
         "showThresholdMarkers": true
@@ -321,9 +315,7 @@
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -366,9 +358,7 @@
       "id": 9,
       "options": {
         "legend": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
@@ -419,9 +409,7 @@
         "justifyMode": "auto",
         "orientation": "horizontal",
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "values": false
         },
         "textMode": "auto"
@@ -578,9 +566,7 @@
         "footer": {
           "countRows": false,
           "fields": "",
-          "reducer": [
-            "sum"
-          ],
+          "reducer": ["sum"],
           "show": false
         },
         "showHeader": true,
@@ -696,13 +682,7 @@
   ],
   "refresh": "15s",
   "schemaVersion": 42,
-  "tags": [
-    "monitoring",
-    "system",
-    "app",
-    "logs",
-    "work4fun"
-  ],
+  "tags": ["monitoring", "system", "app", "logs", "work4fun"],
   "templating": {
     "list": []
   },
@@ -711,12 +691,7 @@
     "to": "now"
   },
   "timepicker": {
-    "refresh_intervals": [
-      "15s",
-      "30s",
-      "1m",
-      "5m"
-    ]
+    "refresh_intervals": ["15s", "30s", "1m", "5m"]
   },
   "timezone": "",
   "title": "🎛️ Monitoring Dashboard",
