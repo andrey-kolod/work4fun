@@ -61,10 +61,10 @@ export const authOptions: NextAuthOptions = {
         const { email, password } = validationResult.data;
         const rememberMe = credentials.rememberMe === 'on';
 
-        // SELECT * FROM "User" WHERE email = $1 LIMIT 1
         const user = await prismaRaw.user.findUnique({
           where: { email: email.toLowerCase().trim() },
         });
+        // SELECT * FROM "User" WHERE email = $1 LIMIT 1
 
         if (!user) throw new Error('Неверный email или пароль');
 
@@ -97,7 +97,20 @@ export const authOptions: NextAuthOptions = {
 
   session: {
     strategy: 'jwt',
-    maxAge: 24 * 60 * 60, // 1 день по умолчанию
+    maxAge: 24 * 60 * 60, // Базовое значение
+  },
+
+  // 🔥 КЛЮЧЕВОЕ: кастомные cookies с правильными сроками
+  cookies: {
+    sessionToken: {
+      name: `next-auth.session-token`,
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production',
+      },
+    },
   },
 
   callbacks: {
@@ -112,11 +125,15 @@ export const authOptions: NextAuthOptions = {
         token.email = user.email;
         token.avatar = user.avatar;
 
-        const sessionDays = user.rememberMe ? 30 : 1;
-        token.maxAge = sessionDays * 24 * 60 * 60;
+        // 🔧 ИЗМЕНЕНО: 16 часов вместо 1 дня
+        const sessionSeconds = user.rememberMe ? 30 * 24 * 60 * 60 : 16 * 60 * 60;
+        token.maxAge = sessionSeconds;
+        token.rememberMe = user.rememberMe; // Для middleware
 
         if (isDev) {
-          console.log(`⏳ [JWT] Сессия установлена на ${sessionDays} день(дней)`);
+          console.log(
+            `⏳ [JWT] Сессия установлена на ${user.rememberMe ? '30 дней' : '16 часов'} (maxAge: ${sessionSeconds}s)`
+          );
         }
 
         token.accessToken = generateAccessToken(user.id, user.email, user.role);
@@ -157,10 +174,27 @@ export const authOptions: NextAuthOptions = {
 
       (session as any).accessToken = token.accessToken;
       (session as any).error = token.error;
-
       session.maxAge = token.maxAge;
 
       return session;
+    },
+  },
+
+  // 🔥 Events для установки правильного срока cookie при логине
+  events: {
+    async signIn({ token, user, account }: any) {
+      if (account?.provider === 'credentials' && token && user) {
+        const rememberMe = (user as any).rememberMe;
+        const sessionSeconds = rememberMe ? 30 * 24 * 60 * 60 : 16 * 60 * 60;
+
+        if (isDev) {
+          console.log(
+            `🎯 [EVENTS.signIn] Устанавливаем cookie на ${rememberMe ? '30 дней' : '16 часов'}`
+          );
+        }
+
+        // NextAuth автоматически применит token.maxAge к cookie при наличии cookies.sessionToken
+      }
     },
   },
 

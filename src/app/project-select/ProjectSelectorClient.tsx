@@ -79,7 +79,8 @@ export default function ProjectSelectorClient({
                     ? 'border-primary bg-primary/5'
                     : 'border-gray-200 hover:border-primary/50 hover:bg-gray-50'
                 }`}
-                onClick={() => setSelectedProject(project.id)}>
+                onClick={() => setSelectedProject(project.id)}
+              >
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
                     <h3 className="font-semibold text-text-primary">{project.name}</h3>
@@ -99,7 +100,8 @@ export default function ProjectSelectorClient({
                       selectedProject === project.id
                         ? 'bg-primary border-primary'
                         : 'border-gray-300'
-                    }`}></div>
+                    }`}
+                  ></div>
                 </div>
               </div>
             ))}
@@ -108,7 +110,8 @@ export default function ProjectSelectorClient({
         <button
           onClick={handleProjectSelect}
           disabled={!selectedProject || isLoading || projects.length === 0}
-          className="w-full bg-primary text-white py-3 px-4 rounded-lg font-semibold hover:bg-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+          className="w-full bg-primary text-white py-3 px-4 rounded-lg font-semibold hover:bg-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
           {isLoading ? (
             <div className="flex items-center justify-center">
               <div className="w-5 h-5 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
@@ -122,7 +125,8 @@ export default function ProjectSelectorClient({
           <div className="mt-4 text-center">
             <button
               onClick={() => router.push('/admin/projects/create')}
-              className="text-primary hover:text-primary-dark text-sm font-medium">
+              className="text-primary hover:text-primary-dark text-sm font-medium"
+            >
               Создать новый проект
             </button>
           </div>

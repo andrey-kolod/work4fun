@@ -1,5 +1,3 @@
-# /monitoring/loki-config.yaml
-
 server:
   http_listen_port: 9080
   grpc_listen_port: 0
@@ -8,7 +6,7 @@ positions:
   filename: /tmp/positions.yaml
 
 clients:
-  - url: http://loki:3100/loki/api/v1/push
+  - url: http://work4fun-loki:3100/loki/api/v1/push
 
 scrape_configs:
   - job_name: containers
@@ -16,33 +14,31 @@ scrape_configs:
       - host: unix:///var/run/docker.sock
         refresh_interval: 15s
     relabel_configs:
-      # БАЗОВЫЕ labels (ТОЛЬКО 6!)
       - source_labels: ['__meta_docker_container_name']
         regex: '/(.*)'
         target_label: container
-        replacement: '$1'
-
-      - source_labels: ['__meta_docker_container_log_stream']
-        target_label: stream
-
-      - source_labels: ['__meta_docker_hostname']
-        target_label: host
-
-      # УДАЛЯЕМ все лишние Docker Compose labels!
-      - action: labelmap
-        regex: __meta_docker_container_label_(.+)
-        replacement: drop
-
-      # Только КЛЮЧЕВЫЕ labels сохраняем
-      - source_labels: ['__meta_docker_container_label_com_docker_compose_project']
-        target_label: compose_project
-
       - source_labels: ['__meta_docker_container_label_com_docker_compose_service']
         target_label: compose_service
-
-      # Job label
       - target_label: job
         replacement: containers
-
     pipeline_stages:
       - docker: {}
+
+  # +++ ДОБАВЬТЕ ЭТОТ НОВЫЙ JOB ДЛЯ ФАЙЛОВ ПРИЛОЖЕНИЯ +++
+  - job_name: work4fun-app-logs
+    static_configs:
+      - targets: [localhost]
+        labels:
+          job: work4fun-app # Эта метка появится в Loki
+          source: file
+          __path__: /logs/*.log # Путь к файлам логов
+    pipeline_stages:
+      # 1. Парсим JSON
+      - json:
+          expressions:
+            log_level: level # Извлекаем "level" из JSON
+            service: service # Извлекаем "service" из JSON
+      # 2. Делаем извлеченные поля метками Loki
+      - labels:
+          level: log_level # Теперь level станет отдельной меткой!
+          service_name: service # Теперь service_name станет отдельной меткой!

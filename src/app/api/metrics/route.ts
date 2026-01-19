@@ -1,49 +1,42 @@
-// /src/app/api/metrics/route.ts
-
+// src/app/api/metrics/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getMetrics } from '@/lib/metrics';
-import { logger } from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
+  const authHeader = request.headers.get('authorization');
+  const expectedToken = process.env.METRICS_PROMETHEUS_TOKEN || 'prometheus-secret-token-2024';
+
+  if (!authHeader || authHeader !== `Bearer ${expectedToken}`) {
+    console.warn('[Metrics API] Unauthorized attempt', {
+      ip: request.headers.get('x-forwarded-for') || 'unknown',
+    });
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
-    // ТОЛЬКО Bearer токен (для Prometheus)
-    const authHeader = request.headers.get('authorization');
-    const expectedToken = process.env.METRICS_PROMETHEUS_TOKEN;
+    let metrics = await getMetrics();
 
-    const ip =
-      request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
+    // Чистим возможные лишние пробелы/переносы
+    metrics = metrics.trim() + '\n';
 
-    if (!expectedToken) {
-      logger.error('METRICS_PROMETHEUS_TOKEN не настроен в .env');
-      return NextResponse.json({ error: 'Metrics not configured' }, { status: 500 });
-    }
-
-    if (!authHeader || authHeader !== `Bearer ${expectedToken}`) {
-      logger.warn(
-        { ip, userAgent: request.headers.get('user-agent') || 'unknown' },
-        '⛔️ Неавторизованный запрос к метрикам'
-      );
-
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401, headers: { 'WWW-Authenticate': 'Bearer realm="Metrics"' } }
-      );
-    }
-
-    logger.debug('✅ Авторизованный запрос метрик');
-    const metrics = await getMetrics();
+    console.log(
+      `[Metrics API] Отдаём Prometheus → длина: ${metrics.length} байт, ` +
+        `testCounter: ${metrics.match(/app_test_counter (\d+)/)?.[1] || 'не найден'}`
+    );
 
     return new NextResponse(metrics, {
       status: 200,
       headers: {
-        'Content-Type': 'text/plain; version=0.0.4',
-        'Cache-Control': 'no-store, max-age=0',
+        'Content-Type': 'text/plain; version=0.0.4; charset=utf-8',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        Pragma: 'no-cache',
+        Expires: '0',
       },
     });
-  } catch (error: any) {
-    logger.error(error, '❌ Ошибка при сборе метрик');
-    return NextResponse.json({ error: 'Failed to collect metrics' }, { status: 500 });
+  } catch (err) {
+    console.error('[Metrics API] Ошибка генерации:', err);
+    return new NextResponse('# ERROR generating metrics\n', { status: 500 });
   }
 }

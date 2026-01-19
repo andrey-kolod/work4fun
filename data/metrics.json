@@ -1,0 +1,22 @@
+{
+  "testCounter": 2758,
+  "httpRequests": {
+    "GET__projects": 17,
+    "GET___well-known_appspecific_com_chrome_devtools_json": 1,
+    "GET__api_auth_session": 4,
+    "GET_projects": 947,
+    "GET_well-known__appspecific__com_chrome_devtools_json": 15,
+    "GET_api__auth__session": 344,
+    "GET_login": 151,
+    "POST_api__auth__recaptcha": 23,
+    "GET_api__auth__providers": 23,
+    "GET_api__auth__csrf": 46,
+    "POST_api__auth__callback__credentials": 23,
+    "POST_api__auth__signout": 22,
+    "POST_api__auth___log": 1,
+    "GET_root": 2,
+    "GET_api__projects": 1200,
+    "GET_api__test-log": 4
+  },
+  "timestamp": 1768816559967
+}

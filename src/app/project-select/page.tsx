@@ -69,7 +69,8 @@ export default async function ProjectSelectPage() {
       <ProjectSelectorClient
         projects={userProjects}
         userRole={session.user.role}
-        userName={session.user.name || ''}></ProjectSelectorClient>
+        userName={session.user.name || ''}
+      ></ProjectSelectorClient>
     </div>
   );
 }

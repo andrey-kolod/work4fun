@@ -1,9 +1,7 @@
-# /monitoring/loki-config.yaml
-
 auth_enabled: false
 
 server:
-  http_listen_port: 3100 # ← 3100 для Loki!
+  http_listen_port: 3100
 
 common:
   path_prefix: /loki
@@ -12,6 +10,10 @@ common:
       chunks_directory: /loki/chunks
       rules_directory: /loki/rules
   replication_factor: 1
+  ring:
+    instance_addr: 127.0.0.1
+    kvstore:
+      store: inmemory
 
 schema_config:
   configs:
@@ -22,3 +24,5 @@ schema_config:
       index:
         prefix: index_
         period: 24h
+  limits_config:
+  max_query_length: 744h
