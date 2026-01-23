@@ -1,123 +1,74 @@
-// src/proxy.ts - 🔥 ИСПРАВЛЕН: типизация для cookie + Number()
+// src/proxy.ts
+
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 import { $Enums } from '@prisma/client';
-import { incTestCounter, incHttpRequest } from '@/lib/metrics';
+import {
+  incTestCounter,
+  startHttpRequestTimer,
+  observeHttpRequest,
+  trackUserActivity,
+  anonymizeUserId,
+} from '@/lib/metrics';
 import { log } from '@/lib/logger';
+
+function getHeadersSize(headers: Headers): number {
+  try {
+    if ('size' in headers) {
+      return (headers as any).size || 0;
+    }
+
+    let count = 0;
+
+    for (const _ of headers.entries()) {
+      count++;
+    }
+    return count;
+  } catch {
+    return 0;
+  }
+}
 
 export async function proxy(request: NextRequest) {
   const isDev = process.env.NODE_ENV === 'development';
   const { pathname } = request.nextUrl;
+  const { method } = request;
+
+  const shouldCollectMetrics = process.env.ENABLE_METRICS === 'true';
+
+  const endTimer = shouldCollectMetrics ? startHttpRequestTimer(method, pathname) : () => {};
+
   const startTime = Date.now();
   let statusCode = 200;
+  let response: NextResponse | null = null;
 
-  // LOGGER
-  log.debug('Proxy test logs', {
-    userId: 123,
-    projectId: 456,
-    projectName: 'New Project',
-  });
-  log.info('Proxy test logs', {
-    userId: 123,
-    projectId: 456,
-    projectName: 'New Project',
-  });
-  log.warn('Proxy test logs', {
-    userId: 123,
-    projectId: 456,
-    projectName: 'New Project',
-  });
-  log.error('Proxy test logs', {
-    userId: 123,
-    projectId: 456,
-    projectName: 'New Project',
-  });
-  log.fatal('Proxy test logs', {
-    userId: 123,
-    amount: 1000,
-    transactionId: 'txn_123',
-    location: 'src/proxy.ts:45',
-  });
-  // LOGGER
+  let accessType = 'unknown';
+  let authStatus = 'anonymous';
+  let userRole = 'none';
+  let isPublicPathFlag = false;
 
-  console.log(`🔍 [Proxy] ${request.method} ${pathname} → начало обработки`);
+  let token: any = null;
 
   try {
-    // Метрики — первыми, всегда
-    await incTestCounter();
-
-    // Безопасный endpoint для Prometheus
-    let safeEndpoint =
-      pathname
-        .replace(/^\/+/, '')
-        .replace(/\/+/g, '__')
-        .replace(/[^a-zA-Z0-9_-]/g, '_')
-        .replace(/^_+|_+$/g, '') || 'root';
-
-    if (safeEndpoint.length > 100) {
-      safeEndpoint = safeEndpoint.substring(0, 97) + '___';
+    if (shouldCollectMetrics) {
+      incTestCounter();
     }
 
-    await incHttpRequest(request.method, safeEndpoint);
+    log.info(`[PROXY] Request: ${method} ${pathname}`, {
+      ip: request.headers.get('x-forwarded-for') || 'unknown',
+      ua: request.headers.get('user-agent')?.substring(0, 100) || 'unknown',
+      pathname,
+      method,
+    });
 
     if (isDev) {
-      console.log(`📈 [Proxy] Метрика добавлена → ${request.method}_${safeEndpoint}`);
+      log.debug('[PROXY] Request headers', {
+        url: request.url,
+        headersCount: getHeadersSize(request.headers),
+      });
     }
 
-    const response = NextResponse.next();
-
-    // 🔥 ИСПРАВЛЕНО: обновляем cookie срок жизни при каждом запросе (с типизацией)
-    const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
-
-    if (token?.maxAge) {
-      const sessionCookie = request.cookies.get('next-auth.session-token');
-      if (sessionCookie) {
-        // ✅ Number() + as number решает TS ошибку
-        response.cookies.set('next-auth.session-token', sessionCookie.value, {
-          maxAge: Number(token.maxAge) as number, // 🔥 ФИКС: явное приведение
-          httpOnly: true,
-          sameSite: 'lax',
-          path: '/',
-          secure: process.env.NODE_ENV === 'production',
-        });
-
-        if (isDev) {
-          const hours = Math.round(Number(token.maxAge) / 3600); // 🔥 ФИКС: арифметика
-          console.log(`🔧 [Proxy] Cookie обновлён → ${hours}ч (rememberMe: ${token.rememberMe})`);
-        }
-      }
-    }
-
-    // CSP — без изменений
-    const cspDirectives = isDev
-      ? [
-          "default-src 'self'",
-          "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.google.com https://www.gstatic.com",
-          "style-src 'self' 'unsafe-inline'",
-          "img-src 'self' data: blob:",
-          "font-src 'self'",
-          "connect-src 'self' ws: wss: https://www.google.com https://www.gstatic.com",
-          "frame-src 'self' https://www.google.com https://www.gstatic.com",
-          "frame-ancestors 'self'",
-        ]
-      : [
-          "default-src 'self'",
-          "script-src 'self' https://www.google.com https://www.gstatic.com",
-          "style-src 'self' 'unsafe-inline'",
-          "img-src 'self' data: blob:",
-          "font-src 'self'",
-          "connect-src 'self' https://www.google.com https://www.gstatic.com",
-          "frame-src 'self' https://www.gstatic.com https://www.google.com",
-          "frame-ancestors 'self'",
-        ];
-
-    if (isDev) {
-      console.log('🔒 [Proxy] CSP применён');
-    }
-    response.headers.set('Content-Security-Policy', cspDirectives.join('; '));
-
-    // Публичные пути — без изменений
     const publicPaths = [
       '/',
       '/login',
@@ -134,150 +85,302 @@ export async function proxy(request: NextRequest) {
       '/api/metrics',
     ];
 
-    const isPublicPath = publicPaths.some(
-      (path) => pathname === path || pathname.startsWith(`${path}/`)
-    );
+    const isPublicPath = publicPaths.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+    isPublicPathFlag = isPublicPath;
+
+    token = await getToken({
+      req: request,
+      secret: process.env.NEXTAUTH_SECRET,
+    });
+
+    if (shouldCollectMetrics && token?.sub) {
+      trackUserActivity(token.sub as string);
+    }
 
     if (isPublicPath) {
-      const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
+      authStatus = token ? 'authenticated' : 'anonymous';
+      userRole = (token?.role as string) || 'none';
 
       if (token && (pathname === '/' || pathname === '/login' || pathname === '/register')) {
-        if (isDev) {
-          console.log('↳ [Proxy] Авторизован на публичной → редирект /projects');
-        }
+        log.info('[PROXY] Authenticated user → redirect /projects', {
+          userId: anonymizeUserId(token.sub),
+          pathname,
+        });
+
         statusCode = 302;
-        return NextResponse.redirect(new URL('/projects', request.url));
+        response = NextResponse.redirect(new URL('/projects', request.url));
+        accessType = 'authenticated_redirect';
       }
 
-      if (isDev) {
-        console.log(`↳ [Proxy] Публичный путь ${pathname} → пропуск`);
+      if (isDev && !response) {
+        log.debug('[PROXY] Public path → missing token', {
+          pathname,
+          hasToken: !!token,
+        });
+      }
+    } else {
+      if (!token || !token.sub) {
+        log.warn('[PROXY] Unauthenticated user → redirect /login', {
+          pathname,
+          ip: request.headers.get('x-forwarded-for') || 'unknown',
+        });
+
+        const loginUrl = new URL('/login', request.url);
+        loginUrl.searchParams.set('callbackUrl', encodeURIComponent(pathname));
+
+        statusCode = 302;
+        response = NextResponse.redirect(loginUrl);
+        accessType = 'unauthenticated_redirect';
+        authStatus = 'anonymous';
+      } else {
+        const userId = token.sub as string;
+        const role = token.role as $Enums.Role;
+
+        authStatus = 'authenticated';
+        userRole = role;
+
+        if (isDev) {
+          log.debug('[PROXY] Authenticated user', {
+            userId: anonymizeUserId(userId),
+            role: role,
+            pathname,
+          });
+        }
+      }
+    }
+
+    if (response) {
+      const durationMs = Date.now() - startTime;
+
+      if (shouldCollectMetrics) {
+        endTimer();
+        observeHttpRequest(method, pathname, statusCode, durationMs / 1000);
       }
 
-      response.headers.set('X-Proxy-Status', 'public-pass');
+      log.info('[PROXY] Request aborted', {
+        method,
+        pathname,
+        status: statusCode,
+        durationMs,
+        accessType,
+        authStatus,
+        userRole,
+        isPublicPath: isPublicPathFlag,
+      });
+
       return response;
     }
 
-    // Проверка токена — без изменений (переименован для избежания конфликта)
-    const authToken = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
+    response = NextResponse.next();
 
-    if (!authToken || !authToken.sub) {
-      if (isDev) {
-        console.log('↳ [Proxy] Нет токена → редирект /login');
+    if (token?.maxAge) {
+      const sessionCookie = request.cookies.get('next-auth.session-token');
+      if (sessionCookie) {
+        response.cookies.set('next-auth.session-token', sessionCookie.value, {
+          maxAge: Number(token.maxAge),
+          httpOnly: true,
+          sameSite: 'lax',
+          path: '/',
+          secure: process.env.NODE_ENV === 'production',
+        });
+
+        if (isDev) {
+          const hours = Math.round(Number(token.maxAge) / 3600);
+          log.debug('[PROXY] Session cookie refreshed', {
+            hours,
+            rememberMe: !!token.rememberMe,
+          });
+        }
       }
-      const loginUrl = new URL('/login', request.url);
-      loginUrl.searchParams.set('callbackUrl', encodeURIComponent(pathname));
-      statusCode = 302;
-      return NextResponse.redirect(loginUrl);
     }
 
-    const userId = authToken.sub as string;
-    const userRole = authToken.role as $Enums.Role;
+    const cspDirectives = isDev
+      ? [
+          "default-src 'self'",
+          "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.google.com https://www.gstatic.com",
+          "style-src 'self' 'unsafe-inline'",
+          "img-src 'self' data: blob:",
+          "font-src 'self'",
+          "connect-src 'self' ws: wss: https://www.google.com https://www.gstatic.com",
+          "frame-src 'self' https://www.google.com https://www.gstatic.com",
+          "frame-ancestors 'self'",
+        ]
+      : [
+          "default-src 'self'",
+          "script-src 'self' https://www.google.com https://www.gstatic.com",
+          "style-src 'self'",
+          "img-src 'self' data: blob:",
+          "font-src 'self'",
+          "connect-src 'self' https://www.google.com https://www.gstatic.com",
+          "frame-src 'self' https://www.gstatic.com https://www.google.com",
+          "frame-ancestors 'self'",
+        ];
+
+    response.headers.set('Content-Security-Policy', cspDirectives.join('; '));
 
     if (isDev) {
-      console.log(`↳ [Proxy] Авторизован → ID: ${userId}, роль: ${userRole}`);
+      log.debug('[PROXY] Установлен CSP заголовок', {
+        directivesCount: cspDirectives.length,
+        hasUnsafeEval: cspDirectives.some((d) => d.includes('unsafe-eval')),
+      });
     }
 
-    // Корень — без изменений
     if (pathname === '/') {
-      if (isDev) {
-        console.log('↳ [Proxy] / → редирект /projects');
-      }
+      log.info('[PROXY] Request / → redirect /projects');
       statusCode = 302;
-      return NextResponse.redirect(new URL('/projects', request.url));
-    }
-
-    // Проекты — без изменений
-    if (pathname.startsWith('/projects')) {
-      if (isDev) {
-        console.log('↳ [Proxy] /projects* → разрешено');
-      }
-      if (pathname === '/projects/create') {
-        if (isDev) {
-          console.log(`✅ [Proxy] Создание проекта → разрешено для ${userRole}`);
-        }
-      }
+      response = NextResponse.redirect(new URL('/projects', request.url));
+      accessType = 'home_redirect';
+    } else if (pathname.startsWith('/projects')) {
+      if (isDev) log.debug('[PROXY] Project access allowed');
       response.headers.set('X-Proxy-Status', 'projects-allowed');
-      return response;
-    }
-
-    // Дашборд и задачи — без изменений
-    if (pathname.startsWith('/dashboard') || pathname.startsWith('/tasks')) {
+      accessType = 'projects';
+    } else if (pathname.startsWith('/dashboard') || pathname.startsWith('/tasks')) {
       const projectId = request.nextUrl.searchParams.get('projectId');
       if (!projectId) {
-        if (isDev) {
-          console.log('↳ [Proxy] Нет projectId → редирект /projects');
-        }
+        log.warn('[PROXY] Redirecting: projectId not found for dashboard/tasks', {
+          pathname,
+          userId: anonymizeUserId(token?.sub),
+        });
+
         statusCode = 302;
-        return NextResponse.redirect(new URL('/projects', request.url));
+        response = NextResponse.redirect(new URL('/projects', request.url));
+        accessType = 'missing_project_id';
+      } else {
+        if (isDev)
+          log.debug('[PROXY] projectId found → Access allowed', {
+            projectId: projectId.substring(0, 8) + '...',
+          });
+        response.headers.set('X-Proxy-Status', 'tasks-allowed');
+        accessType = 'tasks_with_project';
       }
-      if (isDev) {
-        console.log(`↳ [Proxy] projectId=${projectId} → разрешено`);
-      }
-      response.headers.set('X-Proxy-Status', 'tasks-allowed');
-      return response;
-    }
+    } else if (pathname.startsWith('/admin')) {
+      const adminToken = await getToken({
+        req: request,
+        secret: process.env.NEXTAUTH_SECRET,
+      });
+      const role = adminToken?.role as $Enums.Role;
 
-    // Админка — без изменений
-    if (pathname.startsWith('/admin')) {
-      if (pathname === '/admin/projects/create' && userRole !== $Enums.Role.SUPER_ADMIN) {
-        if (isDev) {
-          console.log(`❌ [Proxy] /admin/projects/create запрещено для ${userRole}`);
-        }
+      if (role !== $Enums.Role.SUPER_ADMIN) {
+        log.warn('[PROXY] Admin access denied: SUPER_ADMIN role required', {
+          userId: anonymizeUserId(adminToken?.sub),
+          role,
+          pathname,
+        });
+
         statusCode = 302;
-        return NextResponse.redirect(new URL('/projects/create', request.url));
+        response = NextResponse.redirect(new URL('/projects', request.url));
+        accessType = 'admin_denied';
+      } else {
+        if (isDev) log.debug('Admin authorized: SUPER_ADMIN role required');
+        response.headers.set('X-Proxy-Status', 'admin-allowed');
+        accessType = 'admin_allowed';
       }
+    } else if (pathname.startsWith('/api/admin')) {
+      const adminToken = await getToken({
+        req: request,
+        secret: process.env.NEXTAUTH_SECRET,
+      });
 
-      if (userRole !== $Enums.Role.SUPER_ADMIN) {
-        if (isDev) {
-          console.log(`❌ [Proxy] /admin запрещено (роль ${userRole})`);
-        }
-        statusCode = 302;
-        return NextResponse.redirect(new URL('/projects', request.url));
-      }
+      if (adminToken?.role !== $Enums.Role.SUPER_ADMIN) {
+        log.warn('[PROXY] Forbidden admin API access', {
+          userId: anonymizeUserId(adminToken?.sub),
+          pathname,
+        });
 
-      response.headers.set('X-Proxy-Status', 'admin-allowed');
-      return response;
-    }
-
-    // API админки — без изменений
-    if (pathname.startsWith('/api/admin')) {
-      if (userRole !== $Enums.Role.SUPER_ADMIN) {
-        if (isDev) {
-          console.log(`❌ [Proxy] /api/admin запрещено (роль ${userRole})`);
-        }
         statusCode = 403;
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        response = NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        accessType = 'api_admin_denied';
+      } else {
+        accessType = 'api_admin_allowed';
       }
-      return response;
+    } else {
+      if (isDev) log.debug('[PROXY] Unknown protected route → final check passed');
+      response.headers.set('X-Proxy-Status', 'final-pass');
+      accessType = 'other_protected';
     }
 
-    // API проектов POST — без изменений
-    if (pathname.startsWith('/api/projects') && request.method === 'POST') {
-      if (isDev) {
-        console.log(`↳ [Proxy] /api/projects POST → разрешено`);
-      }
-      return response;
+    const durationMs = Date.now() - startTime;
+
+    if (shouldCollectMetrics) {
+      endTimer();
+      observeHttpRequest(method, pathname, statusCode, durationMs / 1000);
     }
 
-    // Всё остальное — разрешено
-    if (isDev) {
-      console.log(`✅ [Proxy] ${pathname} → финальный пропуск`);
-    }
+    log.info('[PROXY] Request finished', {
+      method,
+      pathname,
+      status: statusCode,
+      durationMs,
+      userId: anonymizeUserId(token?.sub),
+      accessType,
+      authStatus,
+      userRole,
+      isPublicPath: isPublicPathFlag,
+    });
 
-    response.headers.set('X-Proxy-Status', 'final-pass');
-
-    const duration = Date.now() - startTime;
     if (isDev && !pathname.includes('/api/metrics')) {
-      console.log(
-        `📊 [Proxy] ${request.method} ${pathname} → ${duration}ms (status ${statusCode})`
-      );
+      const performanceLevel =
+        durationMs < 100
+          ? 'fast'
+          : durationMs < 500
+            ? 'normal'
+            : durationMs < 1000
+              ? 'slow'
+              : 'very_slow';
+
+      log.debug(`[PROXY] Request: ${method} ${pathname}: ${durationMs}ms (${performanceLevel})`, {
+        performanceLevel,
+        durationMs,
+      });
     }
 
-    return response;
-  } catch (error: any) {
-    console.error('❌ [Proxy] Ошибка:', error);
+    return response!;
+  } catch (err: any) {
     statusCode = 500;
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    const errorDurationMs = Date.now() - startTime;
+
+    log.error('[PROXY] Critical error in proxy', {
+      error: err.message,
+      stack: isDev ? err.stack?.split('\n')[0] : undefined,
+      method,
+      pathname,
+      durationMs: errorDurationMs,
+      userId: anonymizeUserId(token?.sub),
+      timestamp: new Date().toISOString(),
+    });
+
+    if (shouldCollectMetrics) {
+      endTimer();
+      observeHttpRequest(method, pathname, statusCode, errorDurationMs / 1000);
+    }
+
+    const errorMessage = isDev ? `Internal Server Error: ${err.message}` : 'Internal Server Error';
+
+    return NextResponse.json(
+      {
+        error: errorMessage,
+        requestId: `req_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+      },
+      {
+        status: 500,
+        headers: {
+          'X-Error-Type': 'proxy_middleware_failure',
+        },
+      }
+    );
+  } finally {
+    if (shouldCollectMetrics) {
+      try {
+        endTimer();
+      } catch (timerErr) {
+        const errorMessage = timerErr instanceof Error ? timerErr.message : String(timerErr);
+
+        log.warn('[PROXY] Error stopping metrics timer', {
+          error: errorMessage,
+          pathname,
+        });
+      }
+    }
   }
 }
 

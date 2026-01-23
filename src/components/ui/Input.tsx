@@ -31,10 +31,6 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
     const generatedId = React.useId();
     const inputId = propId || generatedId;
 
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[DEV] Input.tsx: error=', error, 'success=', success, 'label=', label);
-    }
-
     return (
       <div className="space-y-1">
         {label && (

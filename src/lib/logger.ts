@@ -47,7 +47,7 @@ function rotateLogs(): void {
       (file) => file.age > LOG_ROTATION_CONFIG.maxAgeDays * 24 * 60 * 60 * 1000
     );
 
-    const filesDeleteByCount =
+    const filesToDeleteByCount =
       files.length > LOG_ROTATION_CONFIG.maxFiles ? files.slice(LOG_ROTATION_CONFIG.maxFiles) : [];
 
     const filesToDeleteBySize: typeof files = [];
@@ -59,7 +59,11 @@ function rotateLogs(): void {
       }
     }
 
-    const allFilesToDelete = [...filesToDeleteBySize, ...filesToDeleteByAge, ...filesDeleteByCount];
+    const allFilesToDelete = [
+      ...filesToDeleteBySize,
+      ...filesToDeleteByAge,
+      ...filesToDeleteByCount,
+    ];
 
     const uniqueFilesToDelete = Array.from(new Set(allFilesToDelete.map((file) => file.path))).map(
       (path) => files.find((file) => file.path === path)!
@@ -72,11 +76,11 @@ function rotateLogs(): void {
         if (isDevelopment) {
           const ageDays = Math.floor(file.age / (24 * 60 * 60 * 1000));
           const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
-          console.log(`📝 Удален лог ${file.name} (${ageDays} дн., ${sizeMB} MB)`);
+          console.log(`📝 Log was deleted ${file.name} (${ageDays} days, ${sizeMB} MB)`);
         }
       } catch (error) {
         if (isDevelopment) {
-          console.error(`❌ Ошибка удаления лога ${file.name}:`, error);
+          console.error(`❌ Error deleting log ${file.name}:`, error);
         }
       }
     });
@@ -90,10 +94,10 @@ function ensureLogDir(): void {
     try {
       fs.mkdirSync(LOG_DIR, { recursive: true });
       if (isDevelopment) {
-        console.log(`📁 Создана папка для логов: ${LOG_DIR}`);
+        console.log(`📁 Created logs directory: ${LOG_DIR}`);
       }
     } catch (error) {
-      console.error(`❌ Ошибка создания папки ${LOG_DIR}:`, error);
+      console.error(`❌ Error creating directory ${LOG_DIR}:`, error);
     }
   } else {
     rotateLogs();
@@ -122,10 +126,10 @@ try {
   });
 
   if (isDevelopment) {
-    console.log(`📝 Логи будут записываться в: ${getLogFileName()}`);
+    console.log(`📝 Logs will be saved to: ${getLogFileName()}`);
   }
 } catch (error) {
-  console.error(`❌ Не удалось создать файловый транспорт:`, error);
+  console.error(`❌ Error creating log file:`, error);
 }
 
 if (ENABLE_CONSOLE_LOG && isDevelopment && !isDocker) {
@@ -266,7 +270,7 @@ logger.info(
     service: SERVICE_NAME,
     version: process.env.npm_package_version || '0.1.0',
   },
-  'Логгер успешно инициализирован'
+  'Logger successfully initialized'
 );
 
 export default log;
