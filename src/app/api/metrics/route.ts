@@ -3,8 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getMetrics } from '@/lib/metrics';
 import { log } from '@/lib/logger';
-
-const isDev = process.env.NODE_ENV === 'development';
+import { IS_DEV } from '@/utils/env';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,6 +17,7 @@ export async function GET(request: NextRequest) {
       userAgent: request.headers.get('user-agent') || 'unknown',
       requestedUrl: request.url,
     });
+
     return NextResponse.json(
       { error: 'Unauthorized - invalid or missing Bearer token' },
       { status: 401 }
@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     let metricsText = await getMetrics();
     metricsText = metricsText.trim() + '\n';
 
-    if (isDev) {
+    if (IS_DEV) {
       const testMatch = metricsText.match(/app_test_counter (\d+)/);
       const testValue = testMatch ? testMatch[1] : 'not found';
 
@@ -47,6 +47,14 @@ export async function GET(request: NextRequest) {
           Expires: '0',
         },
       });
+    } else {
+      return new NextResponse(metricsText, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/plain; version=0.0.4; charset=utf-8',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+        },
+      });
     }
   } catch (error: any) {
     log.error('[Metrics API] Failed to generate metrics', {
@@ -58,3 +66,5 @@ export async function GET(request: NextRequest) {
     return new NextResponse('# ERROR generating metrics\n', { status: 500 });
   }
 }
+
+//TODO Добавить: health-check эндпоинт для проверки доступности метрик.

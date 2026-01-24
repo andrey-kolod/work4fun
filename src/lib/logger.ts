@@ -4,15 +4,14 @@
 import pino from 'pino';
 import fs from 'fs';
 import path from 'path';
+import { env, IS_DEV, IS_PROD } from '@/utils/env';
 
-const NODE_ENV = process.env.NODE_ENV || 'development';
-const isDevelopment = NODE_ENV === 'development';
-const isProduction = NODE_ENV === 'production';
-const isDocker = process.env.DOCKER === 'true';
-const LOG_LEVEL = process.env.LOG_LEVEL || (isDevelopment ? 'debug' : 'info');
-const SERVICE_NAME = process.env.SERVICE_NAME || 'app';
+const NODE_ENV = env.NODE_ENV;
+const isDocker = env.DOCKER;
+const LOG_LEVEL = env.LOG_LEVEL;
+const SERVICE_NAME = env.SERVICE_NAME;
 const LOG_DIR = path.join(process.cwd(), 'monitoring', 'logs');
-const ENABLE_CONSOLE_LOG = process.env.ENABLE_CONSOLE_LOG !== 'false';
+const ENABLE_CONSOLE_LOG = env.ENABLE_CONSOLE_LOG;
 const LOG_ROTATION_CONFIG = {
   maxFiles: 30,
   maxAgeDays: 90,
@@ -73,13 +72,13 @@ function rotateLogs(): void {
       try {
         fs.unlinkSync(file.path);
 
-        if (isDevelopment) {
+        if (IS_DEV) {
           const ageDays = Math.floor(file.age / (24 * 60 * 60 * 1000));
           const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
           console.log(`📝 Log was deleted ${file.name} (${ageDays} days, ${sizeMB} MB)`);
         }
       } catch (error) {
-        if (isDevelopment) {
+        if (IS_DEV) {
           console.error(`❌ Error deleting log ${file.name}:`, error);
         }
       }
@@ -93,7 +92,7 @@ function ensureLogDir(): void {
   if (!fs.existsSync(LOG_DIR)) {
     try {
       fs.mkdirSync(LOG_DIR, { recursive: true });
-      if (isDevelopment) {
+      if (IS_DEV) {
         console.log(`📁 Created logs directory: ${LOG_DIR}`);
       }
     } catch (error) {
@@ -125,41 +124,42 @@ try {
     level: LOG_LEVEL,
   });
 
-  if (isDevelopment) {
+  if (IS_DEV) {
     console.log(`📝 Logs will be saved to: ${getLogFileName()}`);
   }
 } catch (error) {
   console.error(`❌ Error creating log file:`, error);
 }
 
-if (ENABLE_CONSOLE_LOG && isDevelopment && !isDocker) {
-  streams.push({
-    stream: pino.transport({
-      target: 'pino-pretty',
-      options: {
-        colorize: true,
-        ignore: 'pid,hostname',
-        translateTime: 'SYS:HH:MM:ss',
-        messageFormat: '{msg}',
-        singleLine: false,
-        levelFirst: true,
-        customColors: {
-          debug: 'cyan',
-          info: 'green',
-          warn: 'yellow',
-          error: 'red',
-          fatal: 'magneta',
+if (ENABLE_CONSOLE_LOG) {
+  if (IS_DEV && !isDocker) {
+    streams.push({
+      stream: pino.transport({
+        target: 'pino-pretty',
+        options: {
+          colorize: true,
+          ignore: 'pid,hostname',
+          translateTime: 'SYS:HH:MM:ss',
+          messageFormat: '{msg}',
+          singleLine: false,
+          levelFirst: true,
+          customColors: {
+            debug: 'cyan',
+            info: 'green',
+            warn: 'yellow',
+            error: 'red',
+            fatal: 'magneta',
+          },
         },
-      },
-    }),
-    level: 'debug',
-  });
-} else if (!ENABLE_CONSOLE_LOG) {
-} else {
-  streams.push({
-    stream: process.stdout,
-    level: LOG_LEVEL,
-  });
+      }),
+      level: 'debug',
+    });
+  } else {
+    streams.push({
+      stream: process.stdout,
+      level: LOG_LEVEL,
+    });
+  }
 }
 
 export const logger = pino(
@@ -211,7 +211,7 @@ export const logger = pino(
         result.env = NODE_ENV;
       }
 
-      if (isDevelopment) {
+      if (IS_DEV) {
         result.deployment = isDocker ? 'docker' : 'local';
       }
 
@@ -257,8 +257,8 @@ export const log = {
     level: LOG_LEVEL,
     service: SERVICE_NAME,
     env: NODE_ENV,
-    isDevelopment,
-    isProduction,
+    isDevelopment: IS_DEV,
+    isProduction: IS_PROD,
     isDocker,
   }),
 };
