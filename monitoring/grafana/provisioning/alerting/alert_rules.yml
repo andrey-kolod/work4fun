@@ -1,0 +1,68 @@
+# /monitoring/grafana/provisioning/alerting/alert_rules.yml
+
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: loki-app-errors
+    folder: Alerts
+    interval: 15m
+    rules:
+      - uid: afbbv8xv40sg0a
+        title: App Errors in Logs
+        condition: C
+        data:
+          - refId: A
+            queryType: instant
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: P8E80F9AEF21F6940
+            model:
+              editorMode: code
+              expr: |
+                count_over_time(
+                  {service_name="work4fun", job="work4fun-app", level=~"ERROR|FATAL"}
+                  [5m]
+                )
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: instant
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: Alerting
+        execErrState: Alerting
+        for: 1m
+        annotations:
+          description: '{{ $values.A.Value }} errors in last 5m'
+          summary: '🚨 Ошибки в приложении'
+        labels:
+          severity: critical
+        isPaused: false
+        notification_settings:
+          receiver: Telegram Error Notification

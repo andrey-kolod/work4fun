@@ -1,0 +1,16 @@
+apiVersion: 1
+contactPoints:
+  - orgId: 1
+    name: Telegram Error Notification
+    receivers:
+      - uid: dfbbvc9e13zlsb
+        type: telegram
+        settings:
+          bottoken:
+          chatid:
+          disable_notification: false
+          disable_web_page_preview: false
+          parse_mode: ''
+          message: |
+            🚨 ОШИБКИ В ПРИЛОЖЕНИИ!
+          disableResolveMessage: true

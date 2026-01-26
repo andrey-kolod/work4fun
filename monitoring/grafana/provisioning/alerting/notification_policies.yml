@@ -1,0 +1,15 @@
+# # /grafana/provisioning/alerting/notification_policies.yml
+
+apiVersion: 1
+policies:
+  - orgId: 1
+    receiver: grafana-default-email
+    group_by:
+      - grafana_folder
+      - alertname
+    routes:
+      - receiver: Telegram Error Notification
+        object_matchers:
+          - - severity
+            - =
+            - critical

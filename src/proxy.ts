@@ -35,6 +35,7 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const { method } = request;
 
+  log.error('[PROXY] 1 Test error');
   const shouldCollectMetrics = process.env.ENABLE_METRICS === 'true';
 
   const endTimer = shouldCollectMetrics ? startHttpRequestTimer(method, pathname) : () => {};
@@ -54,7 +55,7 @@ export async function proxy(request: NextRequest) {
     if (shouldCollectMetrics) {
       incTestCounter();
     }
-
+    log.error('[PROXY] 2 Test error');
     log.info(`[PROXY] Request: ${method} ${pathname}`, {
       ip: request.headers.get('x-forwarded-for') || 'unknown',
       ua: request.headers.get('user-agent')?.substring(0, 100) || 'unknown',

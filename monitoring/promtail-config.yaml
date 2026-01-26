@@ -1,3 +1,8 @@
+# /monitoring/promtail-config.yaml
+# ТВОЙ ОРИГИНАЛЬНЫЙ РАБОЧИЙ ФАЙЛ — возвращаем его полностью
+# Единственное изменение: URL Loki → http://loki:3100
+# (чтобы работало при любом SERVICE_NAME, без хардкода work4fun-loki)
+
 server:
   http_listen_port: 9080
   grpc_listen_port: 0
@@ -6,7 +11,7 @@ positions:
   filename: /tmp/positions.yaml
 
 clients:
-  - url: http://work4fun-loki:3100/loki/api/v1/push
+  - url: http://loki:3100/loki/api/v1/push # ИЗМЕНЕНО: имя сервиса внутри сети Docker
 
 scrape_configs:
   - job_name: containers
@@ -24,21 +29,19 @@ scrape_configs:
     pipeline_stages:
       - docker: {}
 
-  # +++ ДОБАВЬТЕ ЭТОТ НОВЫЙ JOB ДЛЯ ФАЙЛОВ ПРИЛОЖЕНИЯ +++
+  # +++ ТВОЙ JOB ДЛЯ ФАЙЛОВ ЛОГОВ (оставляем как было) +++
   - job_name: work4fun-app-logs
     static_configs:
       - targets: [localhost]
         labels:
-          job: work4fun-app # Эта метка появится в Loki
+          job: work4fun-app
           source: file
-          __path__: /logs/*.log # Путь к файлам логов
+          __path__: /logs/*.log
     pipeline_stages:
-      # 1. Парсим JSON
       - json:
           expressions:
-            log_level: level # Извлекаем "level" из JSON
-            service: service # Извлекаем "service" из JSON
-      # 2. Делаем извлеченные поля метками Loki
+            log_level: level
+            service: service
       - labels:
-          level: log_level # Теперь level станет отдельной меткой!
-          service_name: service # Теперь service_name станет отдельной меткой!
+          level: log_level
+          service_name: service
