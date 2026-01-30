@@ -6,11 +6,11 @@ contactPoints:
       - uid: dfbbvc9e13zlsb
         type: telegram
         settings:
-          bottoken:
-          chatid:
+          bottoken: 0000000000:AAAAAAAAAAAAAAAA_AAAAAAAAAAAAAAAAAA
+          chatid: '000000000'
           disable_notification: false
           disable_web_page_preview: false
           parse_mode: ''
           message: |
-            🚨 ОШИБКИ В ПРИЛОЖЕНИИ!
+            🚨 ОШИБКИ В ПРИЛОЖЕНИИ! 
           disableResolveMessage: true
