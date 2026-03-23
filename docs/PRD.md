@@ -5,7 +5,8 @@
 **Автор:** Андрей К **Репозиторий:**
 [https://github.com/andrey-kolod/work4fun](https://github.com/andrey-kolod/work4fun)  
 **Статус:** ✅ Активно разрабатывается
-```Этот документ постоянно эволюционирует. Текущая версия отражает мое видение на сегодня, но я открыт к изменениям на основе обратной связи и новых идей.```
+`Этот документ постоянно эволюционирует. Текущая версия отражает мое видение на сегодня, но я открыт к изменениям на основе обратной связи и новых идей.`
+
 ---
 
 ## 📖 Оглавление
@@ -411,9 +412,7 @@ graph TD
     В случае положительного решения, администратор вручную создает пользователя или проект через панель администрирования.
 ```
 
-
 # !!!!!!!!! спинер загрузки крутится какое-то время, потом предупреждает что нужно еще подождать, потом говорит, что скорее всего какая-то фигня
-
 
 #### 3.1.3 Регистрация пользователя в системе через приглашение
 
@@ -1816,81 +1815,44 @@ docker compose logs | grep "blockedBy"
 - плавный переход на питон.
 
 ## 🗺️ Roadmap: Настройка автоматической сборки,
- Краткий план CI/CD (без кода)
-🎯 Цель
-Автоматически проверять код, запускать тесты и выкатывать обновления на демо-стенд при каждом push в репозиторий.
 
-📦 Сервисы и их роль
-Сервис	Роль	Бесплатно
-GitHub	Хранение кода, триггер пайплайнов	✅ Да
-GitHub Actions	Запуск тестов, сборка, деплой	✅ 2000 мин/мес
-Render.com	Хостинг бэкенда (Django + FastAPI + PostgreSQL + Redis)	✅ 750 часов/мес
-Vercel	Хостинг фронтенда (React)	✅ 100 GB трафика
-GitHub Secrets	Хранение паролей, токенов, ключей	✅ Да
-Telegram Bot	Уведомления о статусе деплоя	✅ Бесплатно
-🔄 Поток работы
-text
-1. Разработчик пушит код в GitHub
-         ↓
-2. GitHub Actions автоматически запускается
-         ↓
-3. Запускаются тесты (pytest + Playwright)
-         ↓
-4. Если тесты прошли → сборка Docker образов
-         ↓
-5. Деплой на Render (бэкенд) и Vercel (фронтенд)
-         ↓
-6. Telegram бот присылает уведомление "Деплой успешен"
-         ↓
-7. Демо-стенд обновлён → можно тестировать
-🌿 Ветки и окружения
-Ветка	Триггер	Действие	Куда деплоится
-feature/*	Push / PR	Тесты только	—
-develop	Push	Тесты + сборка	Dev-стенд
-main	Push	Тесты + сборка + деплой	Prod-стенд (демо)
-🔐 Секреты (хранятся в GitHub Secrets)
-Секрет	Откуда	Зачем
-RENDER_API_KEY	Render Dashboard	Деплой бэкенда
-RENDER_SERVICE_ID	Render Dashboard	Идентификатор сервиса
-VERCEL_TOKEN	Vercel Account	Деплой фронтенда
-VERCEL_ORG_ID	Vercel Project	Идентификатор организации
-VERCEL_PROJECT_ID	Vercel Project	Идентификатор проекта
-PROD_DATABASE_URL	Render PostgreSQL	Продакшен БД
-TEST_DATABASE_URL	Render PostgreSQL	Тестовая БД
-REDIS_URL	Render Redis	Кэш и Celery
-DJANGO_SECRET_KEY	Сгенерировать	Безопасность Django
-TELEGRAM_BOT_TOKEN	@BotFather	Уведомления
-TELEGRAM_CHAT_ID	Telegram	Куда отправлять
-🧪 Что проверяется в тестах
-Тест	Инструмент	Что проверяет
-Бэкенд	pytest	API эндпоинты, валидация, права доступа
-Фронтенд	Vitest/Jest	React компоненты, Zustand стейт
-E2E	Playwright	Пользовательские сценарии (регистрация → проект → задача)
-📦 Артефакты сборки
-Что собирается	Формат	Куда сохраняется
-Django	Docker image	GitHub Container Registry
-FastAPI	Docker image	GitHub Container Registry
-React	Статические файлы	Vercel (билдится на лету)
-🔔 Уведомления
-Событие	Канал	Сообщение
-Начало пайплайна	Telegram	"🟡 Запущен деплой"
-Тесты упали	Telegram	"🔴 Тесты не прошли: ссылка на лог"
-Деплой успешен	Telegram	"✅ Деплой на демо: ссылка на сайт"
-Деплой упал	Telegram	"❌ Ошибка деплоя: причина"
-🚀 Демо-стенды
-Тип	URL	Когда создаётся
-Production	work4fun.vercel.app	Push в main
-Preview (PR)	pr-123.work4fun.vercel.app	При создании Pull Request
-Development	dev.work4fun.vercel.app	Push в develop
-📊 График внедрения
-День	Что делаем
-1	Регистрируем сервисы, настраиваем GitHub Secrets
-2	Пишем базовый пайплайн (тесты бэкенда + фронта)
-3	Настраиваем деплой на Render и Vercel
-4	Настраиваем preview стенды для PR
-5	Подключаем Telegram уведомления, тестируем
-✅ Результат
-После настройки CI/CD:
+Краткий план CI/CD (без кода) 🎯 Цель Автоматически проверять код, запускать тесты и выкатывать
+обновления на демо-стенд при каждом push в репозиторий.
+
+📦 Сервисы и их роль Сервис Роль Бесплатно GitHub Хранение кода, триггер пайплайнов ✅ Да GitHub
+Actions Запуск тестов, сборка, деплой ✅ 2000 мин/мес Render.com Хостинг бэкенда (Django + FastAPI +
+PostgreSQL + Redis) ✅ 750 часов/мес Vercel Хостинг фронтенда (React) ✅ 100 GB трафика GitHub
+Secrets Хранение паролей, токенов, ключей ✅ Да Telegram Bot Уведомления о статусе деплоя ✅
+Бесплатно 🔄 Поток работы text
+
+1. Разработчик пушит код в GitHub ↓
+2. GitHub Actions автоматически запускается ↓
+3. Запускаются тесты (pytest + Playwright) ↓
+4. Если тесты прошли → сборка Docker образов ↓
+5. Деплой на Render (бэкенд) и Vercel (фронтенд) ↓
+6. Telegram бот присылает уведомление "Деплой успешен" ↓
+7. Демо-стенд обновлён → можно тестировать 🌿 Ветки и окружения Ветка Триггер Действие Куда
+   деплоится feature/\* Push / PR Тесты только — develop Push Тесты + сборка Dev-стенд main Push
+   Тесты + сборка + деплой Prod-стенд (демо) 🔐 Секреты (хранятся в GitHub Secrets) Секрет Откуда
+   Зачем RENDER_API_KEY Render Dashboard Деплой бэкенда RENDER_SERVICE_ID Render Dashboard
+   Идентификатор сервиса VERCEL_TOKEN Vercel Account Деплой фронтенда VERCEL_ORG_ID Vercel Project
+   Идентификатор организации VERCEL_PROJECT_ID Vercel Project Идентификатор проекта
+   PROD_DATABASE_URL Render PostgreSQL Продакшен БД TEST_DATABASE_URL Render PostgreSQL Тестовая БД
+   REDIS_URL Render Redis Кэш и Celery DJANGO_SECRET_KEY Сгенерировать Безопасность Django
+   TELEGRAM_BOT_TOKEN @BotFather Уведомления TELEGRAM_CHAT_ID Telegram Куда отправлять 🧪 Что
+   проверяется в тестах Тест Инструмент Что проверяет Бэкенд pytest API эндпоинты, валидация, права
+   доступа Фронтенд Vitest/Jest React компоненты, Zustand стейт E2E Playwright Пользовательские
+   сценарии (регистрация → проект → задача) 📦 Артефакты сборки Что собирается Формат Куда
+   сохраняется Django Docker image GitHub Container Registry FastAPI Docker image GitHub Container
+   Registry React Статические файлы Vercel (билдится на лету) 🔔 Уведомления Событие Канал Сообщение
+   Начало пайплайна Telegram "🟡 Запущен деплой" Тесты упали Telegram "🔴 Тесты не прошли: ссылка на
+   лог" Деплой успешен Telegram "✅ Деплой на демо: ссылка на сайт" Деплой упал Telegram "❌ Ошибка
+   деплоя: причина" 🚀 Демо-стенды Тип URL Когда создаётся Production work4fun.vercel.app Push в
+   main Preview (PR) pr-123.work4fun.vercel.app При создании Pull Request Development
+   dev.work4fun.vercel.app Push в develop 📊 График внедрения День Что делаем 1 Регистрируем
+   сервисы, настраиваем GitHub Secrets 2 Пишем базовый пайплайн (тесты бэкенда + фронта) 3
+   Настраиваем деплой на Render и Vercel 4 Настраиваем preview стенды для PR 5 Подключаем Telegram
+   уведомления, тестируем ✅ Результат После настройки CI/CD:
 
 🔄 Автоматизация — не нужно руками деплоить
 
